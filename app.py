@@ -7,6 +7,7 @@ from flask import Flask, jsonify, request, send_from_directory, send_file, abort
 from database import db, Station, FuelTransaction, InventorySnapshot, Report, Prediction
 import reports
 import predictions
+import sat_xml_generator
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -474,6 +475,107 @@ def api_alerts():
     order = {"critical": 0, "warning": 1, "info": 2}
     alerts.sort(key=lambda a: order.get(a["type"], 3))
     return jsonify(alerts[:15])
+
+
+# ------------------------------------------------------------------ #
+#  API: SAT XML Generator (AI-powered)
+# ------------------------------------------------------------------ #
+@app.route("/api/sat-xml/generate", methods=["POST"])
+def api_generate_sat_xml():
+    """Generate SAT-compliant XML from raw station data using Claude."""
+    data = request.json or {}
+
+    station_config = {
+        "rfc": data.get("rfc", "GAZ850101ABC"),
+        "rfc_proveedor": data.get("rfc_proveedor", "XAXX010101000"),
+        "num_permiso": data.get("num_permiso", "PL/12345/EXP/ES/2024"),
+        "modalidad_permiso": data.get("modalidad_permiso", "PL/XXXXX/EXP/ES/2024"),
+        "clave_instalacion": data.get("clave_instalacion", "EDS-0001"),
+        "descripcion": data.get("descripcion", "Estacion de servicio"),
+        "latitud": data.get("latitud", "31.6904"),
+        "longitud": data.get("longitud", "-106.4245"),
+        "num_tanques": data.get("num_tanques", "3"),
+        "num_dispensarios": data.get("num_dispensarios", "8"),
+    }
+
+    raw_data = data.get("raw_data", "")
+    if not raw_data.strip():
+        return jsonify({"error": "raw_data is required. Provide tank readings, receptions, and sales data."}), 400
+
+    report_date_str = data.get("date")
+    report_date = date.fromisoformat(report_date_str) if report_date_str else date.today()
+
+    result = sat_xml_generator.generate_sat_xml_with_ai(station_config, raw_data, report_date)
+
+    if result.get("error"):
+        return jsonify(result), 500 if "API error" in result["error"] else 400
+
+    # Save to reports DB
+    report = Report(
+        report_type="sat_xml_volumetric",
+        report_date=report_date,
+        status="generated",
+        file_path=result["zip_path"],
+        created_at=datetime.utcnow(),
+        details=f"XML SAT generado con IA. {result['validation'].get('product_count', 0)} productos. Archivo: {result['zip_filename']}",
+    )
+    db.session.add(report)
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "report_id": report.id,
+        "xml_filename": result["xml_filename"],
+        "zip_filename": result["zip_filename"],
+        "validation": result["validation"],
+        "tokens_used": result.get("tokens_used"),
+    })
+
+
+@app.route("/api/sat-xml/generate-from-db", methods=["POST"])
+def api_generate_sat_xml_from_db():
+    """Generate SAT XML using existing database data + AI."""
+    data = request.json or {}
+    report_date_str = data.get("date")
+    report_date = date.fromisoformat(report_date_str) if report_date_str else date.today()
+
+    result = sat_xml_generator.generate_demo_xml(report_date)
+
+    if result.get("error"):
+        return jsonify(result), 500 if "API error" in result.get("error", "") else 400
+
+    report = Report(
+        report_type="sat_xml_volumetric",
+        report_date=report_date,
+        status="generated",
+        file_path=result["zip_path"],
+        created_at=datetime.utcnow(),
+        details=f"XML SAT desde BD. {result['validation'].get('product_count', 0)} productos. {result['zip_filename']}",
+    )
+    db.session.add(report)
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "report_id": report.id,
+        "xml_filename": result["xml_filename"],
+        "zip_filename": result["zip_filename"],
+        "validation": result["validation"],
+        "tokens_used": result.get("tokens_used"),
+    })
+
+
+@app.route("/api/sat-xml/download/<int:report_id>")
+def api_download_sat_xml(report_id):
+    """Download a generated SAT XML zip file."""
+    report = Report.query.get_or_404(report_id)
+    if not report.file_path or not os.path.exists(report.file_path):
+        abort(404)
+    return send_file(
+        report.file_path,
+        as_attachment=True,
+        download_name=os.path.basename(report.file_path),
+    )
 
 
 # ------------------------------------------------------------------ #

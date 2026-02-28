@@ -5,6 +5,8 @@ and uses Claude Opus to generate SAT-compliant XML for controles volumetricos.
 """
 import os
 import io
+import json
+import base64
 import zipfile
 import xml.etree.ElementTree as ET
 from datetime import datetime, date
@@ -14,6 +16,24 @@ try:
     HAS_ANTHROPIC = True
 except ImportError:
     HAS_ANTHROPIC = False
+
+try:
+    import pdfplumber
+    HAS_PDFPLUMBER = True
+except ImportError:
+    HAS_PDFPLUMBER = False
+
+try:
+    from docx import Document as DocxDocument
+    HAS_DOCX = True
+except ImportError:
+    HAS_DOCX = False
+
+try:
+    import openpyxl
+    HAS_OPENPYXL = True
+except ImportError:
+    HAS_OPENPYXL = False
 
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
@@ -69,9 +89,234 @@ CRITICAL RULES:
 7. Every dispensario delivery must have PrecioVentaTotEnt and CFDI
 8. Product codes: PR09=Magna(87oct), PR07=Premium(91oct), PR03=Diesel
 9. FechaYHoraCorte must be end of day: YYYY-MM-DDT23:59:59
-10. Temperature range: 15-45°C, PresionAbsoluta: 0.0 for liquids
+10. Temperature range: 15-45Â°C, PresionAbsoluta: 0.0 for liquids
 
 OUTPUT: Return ONLY the complete XML document. No markdown, no code fences, no explanation. Just the raw XML starting with <?xml and ending with </Covol:ControlVolumetrico>."""
+
+
+EXTRACTION_SYSTEM_PROMPT = """Eres un experto en operaciones de estaciones de servicio (gasolineras) en Mexico. Tu trabajo es analizar documentos operativos y extraer datos estructurados para generar reportes SAT de controles volumetricos.
+
+Analiza el documento proporcionado y extrae la siguiente informacion en formato JSON:
+
+{
+  "rfc": "RFC del contribuyente (si aparece)",
+  "permiso": "Numero de permiso CRE/CNE (si aparece)",
+  "clave_instalacion": "Clave de instalacion (si aparece)",
+  "fecha": "Fecha del reporte en formato YYYY-MM-DD",
+  "tanques": [
+    {
+      "nombre": "Nombre/ID del tanque",
+      "producto": "magna|premium|diesel",
+      "capacidad_litros": 40000,
+      "inventario_inicial": 15000,
+      "inventario_final": 16500,
+      "temperatura": 26,
+      "uncertain": false
+    }
+  ],
+  "recepciones": [
+    {
+      "tanque": "Nombre/ID del tanque destino",
+      "producto": "magna|premium|diesel",
+      "litros": 20000,
+      "proveedor": "Nombre del proveedor",
+      "rfc_proveedor": "RFC del proveedor",
+      "num_factura": "Numero de factura/CFDI",
+      "precio_litro": 21.50,
+      "fecha_hora": "2026-02-27T10:15:00",
+      "uncertain": false
+    }
+  ],
+  "entregas": [
+    {
+      "tanque": "Nombre/ID del tanque origen",
+      "producto": "magna|premium|diesel",
+      "litros": 18500,
+      "dispensario": "ID del dispensario",
+      "uncertain": false
+    }
+  ],
+  "notas": [
+    "Lista de observaciones, datos faltantes, o valores inciertos"
+  ],
+  "confidence": 85
+}
+
+REGLAS DE EXTRACCION:
+1. Codigos de producto: Magna/Regular/87oct = "magna", Premium/91oct = "premium", Diesel = "diesel"
+2. Si un valor no esta claro, marcalo con "uncertain": true y agrega una nota explicando
+3. Si falta informacion critica (inventarios, recepciones), agrega una nota con "FALTANTE: ..."
+4. El campo "confidence" es tu puntuacion de confianza (1-100):
+   - Base: 100
+   - Resta 5 por cada campo critico faltante (RFC, permiso, inventarios)
+   - Resta 3 por cada valor incierto/estimado
+   - Resta 2 por cada problema de calidad (documento borroso, datos ambiguos)
+5. Volumenes siempre en litros, precios en MXN
+6. Si el documento es una imagen borrosa o de baja calidad, refleja esto en el confidence score
+
+OUTPUT: Responde SOLO con el JSON valido. Sin markdown, sin code fences, sin explicacion."""
+
+
+def extract_text_from_file(file_bytes, filename):
+    """Extract text content from uploaded file based on its type.
+
+    Args:
+        file_bytes: raw bytes of the uploaded file
+        filename: original filename (used to determine type)
+
+    Returns:
+        dict with 'text' (extracted text) or 'image_base64' (for images),
+        plus 'type' indicating the file type
+    """
+    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+
+    if ext == 'pdf':
+        if not HAS_PDFPLUMBER:
+            return {"error": "pdfplumber no instalado. Contacte al administrador."}
+        try:
+            pdf = pdfplumber.open(io.BytesIO(file_bytes))
+            pages_text = []
+            for i, page in enumerate(pdf.pages):
+                text = page.extract_text() or ""
+                tables = page.extract_tables()
+                table_text = ""
+                for table in tables:
+                    for row in table:
+                        table_text += " | ".join(str(cell or "") for cell in row) + "\n"
+                pages_text.append(f"--- Pagina {i+1} ---\n{text}\n{table_text}")
+            pdf.close()
+            return {"text": "\n".join(pages_text), "type": "pdf"}
+        except Exception as e:
+            return {"error": f"Error leyendo PDF: {str(e)}"}
+
+    elif ext in ('xlsx', 'xls'):
+        if not HAS_OPENPYXL:
+            return {"error": "openpyxl no instalado."}
+        try:
+            wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
+            sheets_text = []
+            for sheet_name in wb.sheetnames:
+                ws = wb[sheet_name]
+                lines = [f"--- Hoja: {sheet_name} ---"]
+                for row in ws.iter_rows(values_only=True):
+                    line = " | ".join(str(cell if cell is not None else "") for cell in row)
+                    if line.strip(" |"):
+                        lines.append(line)
+                sheets_text.append("\n".join(lines))
+            wb.close()
+            return {"text": "\n".join(sheets_text), "type": "xlsx"}
+        except Exception as e:
+            return {"error": f"Error leyendo Excel: {str(e)}"}
+
+    elif ext == 'docx':
+        if not HAS_DOCX:
+            return {"error": "python-docx no instalado."}
+        try:
+            doc = DocxDocument(io.BytesIO(file_bytes))
+            paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
+            # Also extract tables
+            for table in doc.tables:
+                for row in table.rows:
+                    cells = [cell.text.strip() for cell in row.cells]
+                    paragraphs.append(" | ".join(cells))
+            return {"text": "\n".join(paragraphs), "type": "docx"}
+        except Exception as e:
+            return {"error": f"Error leyendo DOCX: {str(e)}"}
+
+    elif ext in ('jpg', 'jpeg', 'png', 'webp'):
+        # For images, encode as base64 for Claude vision API
+        mime_types = {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'webp': 'image/webp'}
+        mime = mime_types.get(ext, 'image/jpeg')
+        b64 = base64.standard_b64encode(file_bytes).decode('utf-8')
+        return {"image_base64": b64, "mime_type": mime, "type": "image"}
+
+    else:
+        return {"error": f"Tipo de archivo no soportado: .{ext}"}
+
+
+def extract_data_from_file(file_bytes, filename):
+    """Use Claude to extract structured data from an uploaded document.
+
+    Args:
+        file_bytes: raw bytes of the uploaded file
+        filename: original filename
+
+    Returns:
+        dict with extracted_data, confidence, notes, or error
+    """
+    if not HAS_ANTHROPIC:
+        return {"error": "Anthropic SDK not installed."}
+    if not ANTHROPIC_API_KEY:
+        return {"error": "ANTHROPIC_API_KEY not configured."}
+
+    # Extract content from file
+    file_content = extract_text_from_file(file_bytes, filename)
+
+    if "error" in file_content:
+        return file_content
+
+    try:
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+
+        # Build message based on file type
+        if file_content["type"] == "image":
+            messages = [{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": file_content["mime_type"],
+                            "data": file_content["image_base64"],
+                        }
+                    },
+                    {
+                        "type": "text",
+                        "text": f"Analiza esta imagen de un documento operativo de gasolinera y extrae los datos estructurados. Archivo: {filename}"
+                    }
+                ]
+            }]
+        else:
+            messages = [{
+                "role": "user",
+                "content": f"Analiza el siguiente documento operativo de gasolinera y extrae los datos estructurados.\n\nArchivo: {filename}\n\nCONTENIDO DEL DOCUMENTO:\n{file_content['text']}"
+            }]
+
+        message = client.messages.create(
+            model="claude-opus-4-5-20251101",
+            max_tokens=8000,
+            system=EXTRACTION_SYSTEM_PROMPT,
+            messages=messages,
+        )
+
+        response_text = message.content[0].text.strip()
+
+        # Clean up markdown fences if present
+        if response_text.startswith("```"):
+            lines = response_text.split("\n")
+            response_text = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+
+        # Parse JSON response
+        extracted = json.loads(response_text)
+
+        return {
+            "success": True,
+            "extracted_data": extracted,
+            "confidence": extracted.get("confidence", 50),
+            "notes": extracted.get("notas", []),
+            "tokens_used": {
+                "input": message.usage.input_tokens,
+                "output": message.usage.output_tokens,
+            },
+        }
+
+    except json.JSONDecodeError as e:
+        return {"error": f"Error parseando respuesta de IA: {str(e)}", "raw_response": response_text}
+    except anthropic.APIError as e:
+        return {"error": f"Anthropic API error: {str(e)}"}
+    except Exception as e:
+        return {"error": f"Error inesperado: {str(e)}"}
 
 
 def generate_sat_xml_with_ai(station_data, raw_data_text, report_date=None):

@@ -202,12 +202,13 @@ async function loadReportes() {
     const history = await api('/api/reports/history');
     const typeLabels = {
       sat_volumetric: 'Control Volumetrico SAT',
+      sat_xml_volumetric: 'XML SAT Volumetrico (IA)',
       cne_weekly: 'Reporte Semanal CNE',
       inventory_close: 'Inventario de Cierre',
       price_tariff: 'Precios y Tarifas',
     };
     const typeIcons = {
-      sat_volumetric: 'V', cne_weekly: 'C', inventory_close: 'I', price_tariff: '$',
+      sat_volumetric: 'V', sat_xml_volumetric: 'X', cne_weekly: 'C', inventory_close: 'I', price_tariff: '$',
     };
 
     // Count stats
@@ -215,20 +216,98 @@ async function loadReportes() {
     const todayReports = history.filter(r => r.date === today);
     const sentReports = history.filter(r => r.status === 'sent');
 
+    const xmlReports = history.filter(r => r.type === 'sat_xml_volumetric');
+
     let html = `
     <div class="kpi-grid">
       <div class="kpi"><div class="kpi-top"><div class="kpi-icon green">OK</div></div><div class="kpi-value" style="color:var(--green)">100%</div><div class="kpi-label">Cumplimiento SAT (mes)</div></div>
       <div class="kpi"><div class="kpi-top"><div class="kpi-icon teal">R</div></div><div class="kpi-value">${history.length}</div><div class="kpi-label">Reportes generados</div></div>
       <div class="kpi"><div class="kpi-top"><div class="kpi-icon orange">T</div></div><div class="kpi-value">${todayReports.length}</div><div class="kpi-label">Reportes hoy</div></div>
-      <div class="kpi"><div class="kpi-top"><div class="kpi-icon blue">$0</div></div><div class="kpi-value" style="color:var(--green)">$0</div><div class="kpi-label">Multas este periodo</div></div>
+      <div class="kpi"><div class="kpi-top"><div class="kpi-icon blue">XML</div></div><div class="kpi-value" style="color:var(--teal)">${xmlReports.length}</div><div class="kpi-label">Reportes XML SAT</div></div>
+    </div>
+
+    <div class="panel" style="border:1px solid var(--teal);background:linear-gradient(135deg, rgba(13,148,136,.08), rgba(13,148,136,.02))">
+      <div class="panel-header">
+        <span class="panel-title" style="color:var(--teal)">Generar XML SAT con IA (Opus 4.6)</span>
+      </div>
+      <p style="color:var(--g400);font-size:.78rem;margin-bottom:.8rem">Sube tus datos operativos y Claude genera el XML validado listo para enviar al SAT via el portal de controles volumetricos.</p>
+      <div id="satXmlForm">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.6rem">
+          <div class="form-group" style="margin:0">
+            <label class="form-label">RFC Contribuyente</label>
+            <input type="text" class="form-input" id="xmlRfc" value="GAZ850101ABC" placeholder="RFC de la empresa">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Numero de Permiso CRE/CNE</label>
+            <input type="text" class="form-input" id="xmlPermiso" value="PL/12345/EXP/ES/2024" placeholder="PL/XXXXX/EXP/ES/XXXX">
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem;margin-bottom:.6rem">
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Clave Instalacion</label>
+            <input type="text" class="form-input" id="xmlClave" value="EDS-0001" placeholder="EDS-XXXX">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Fecha del Reporte</label>
+            <input type="date" class="form-input" id="xmlFecha" value="${today}">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Fuente de Datos</label>
+            <select class="form-select" id="xmlSource" onchange="toggleXmlDataSource()">
+              <option value="manual">Ingresar datos manualmente</option>
+              <option value="database">Usar datos de ControlPetro</option>
+            </select>
+          </div>
+        </div>
+        <div id="xmlManualData">
+          <div class="form-group" style="margin:0;margin-bottom:.6rem">
+            <label class="form-label">Datos Operativos (lecturas de tanques, recepciones PEMEX, ventas del dia)</label>
+            <textarea class="form-input" id="xmlRawData" rows="10" style="font-family:monospace;font-size:.72rem;line-height:1.4;resize:vertical" placeholder="Pega aqui los datos del dia. Ejemplo:
+
+TANQUE MAGNA (TQ-0001):
+  Capacidad: 40,000L
+  Inventario Inicial: 15,000L
+  Recepcion PEMEX: 20,000L (Factura A-12345, 27/02/2026 10:15am)
+  Proveedor: PEMEX Transformacion Industrial (RFC: PEM991231XXX)
+  Precio por litro: $21.50
+  Litros Vendidos: 18,500L via DISP-0001 (2 mangueras)
+  Inventario Final: 16,500L
+  Temperatura promedio: 26Â°C
+
+TANQUE PREMIUM (TQ-0002):
+  Capacidad: 40,000L
+  Inventario Inicial: 12,000L
+  Sin recepciones
+  Litros Vendidos: 5,200L via DISP-0003
+  Inventario Final: 6,800L
+
+TANQUE DIESEL (TQ-0003):
+  Capacidad: 40,000L
+  Inventario Inicial: 22,000L
+  Sin recepciones
+  Litros Vendidos: 8,000L via DISP-0005
+  Inventario Final: 14,000L"></textarea>
+          </div>
+        </div>
+        <div style="display:flex;gap:.5rem;align-items:center">
+          <button class="btn btn-primary" onclick="generateSatXml()" id="btnGenXml" style="background:var(--teal);padding:10px 24px;font-size:.82rem">
+            Generar XML con Opus 4.6
+          </button>
+          <span id="xmlSpinner" style="display:none;color:var(--teal);font-size:.78rem">
+            <span class="spinner" style="width:16px;height:16px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px"></span>
+            Generando reporte con IA...
+          </span>
+        </div>
+      </div>
+      <div id="xmlResult" style="display:none;margin-top:.8rem"></div>
     </div>
 
     <div class="panel">
       <div class="panel-header">
-        <span class="panel-title">Generar Reportes</span>
+        <span class="panel-title">Generar Reportes Internos</span>
       </div>
       <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem">
-        <button class="btn btn-primary" onclick="generateReport('sat_volumetric')">Generar SAT Volumetrico</button>
+        <button class="btn btn-primary" onclick="generateReport('sat_volumetric')">Generar SAT Volumetrico (Excel)</button>
         <button class="btn btn-primary" onclick="generateReport('cne_weekly')">Generar CNE Semanal</button>
         <button class="btn btn-primary" onclick="generateReport('inventory_close')">Generar Inventario Cierre</button>
         <button class="btn btn-primary" onclick="generateReport('price_tariff')">Generar Precios/Tarifas</button>
@@ -300,6 +379,97 @@ function downloadReport(id) {
 async function sendReport(id) {
   await apiPost(`/api/reports/send/${id}`, {});
   loadReportes();
+}
+
+// ----------------------------------------------------------------
+//  SAT XML Generation
+// ----------------------------------------------------------------
+function toggleXmlDataSource() {
+  const source = document.getElementById('xmlSource').value;
+  const manual = document.getElementById('xmlManualData');
+  if (manual) manual.style.display = source === 'manual' ? 'block' : 'none';
+}
+
+async function generateSatXml() {
+  const btn = document.getElementById('btnGenXml');
+  const spinner = document.getElementById('xmlSpinner');
+  const resultDiv = document.getElementById('xmlResult');
+  const source = document.getElementById('xmlSource').value;
+
+  btn.disabled = true;
+  spinner.style.display = 'inline';
+  resultDiv.style.display = 'none';
+
+  try {
+    let result;
+    if (source === 'database') {
+      const fecha = document.getElementById('xmlFecha').value;
+      result = await apiPost('/api/sat-xml/generate-from-db', { date: fecha });
+    } else {
+      const rawData = document.getElementById('xmlRawData').value;
+      if (!rawData.trim()) {
+        throw new Error('Ingresa los datos operativos del dia.');
+      }
+      result = await apiPost('/api/sat-xml/generate', {
+        rfc: document.getElementById('xmlRfc').value,
+        num_permiso: document.getElementById('xmlPermiso').value,
+        clave_instalacion: document.getElementById('xmlClave').value,
+        date: document.getElementById('xmlFecha').value,
+        raw_data: rawData,
+      });
+    }
+
+    if (result.error) {
+      resultDiv.style.display = 'block';
+      resultDiv.innerHTML = `<div class="form-msg error">${result.error}</div>`;
+      return;
+    }
+
+    const v = result.validation || {};
+    const products = (v.products || []).map(p =>
+      `<span style="margin-right:8px">${p.clave} (${p.marca}): ${p.tanques} tanques, ${p.dispensarios} disp. ${p.balance_ok ? badge('Balance OK', 'green') : badge('Balance Error', 'red')}</span>`
+    ).join('');
+    const warnings = (v.warnings || []).length > 0
+      ? `<div style="color:var(--orange);font-size:.72rem;margin-top:.4rem"><strong>Advertencias:</strong> ${v.warnings.join('; ')}</div>`
+      : '';
+    const tokens = result.tokens_used
+      ? `<span style="color:var(--g500);font-size:.68rem;margin-left:8px">(${result.tokens_used.input + result.tokens_used.output} tokens)</span>`
+      : '';
+
+    resultDiv.style.display = 'block';
+    resultDiv.innerHTML = `
+      <div style="background:rgba(13,148,136,.1);border:1px solid var(--teal);border-radius:8px;padding:.8rem">
+        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
+          ${badge('XML Generado', 'green')}
+          <strong style="color:var(--w);font-size:.82rem">${result.xml_filename}</strong>
+          ${tokens}
+        </div>
+        <div style="font-size:.72rem;color:var(--g400);margin-bottom:.5rem">
+          <strong>Validacion:</strong> ${v.product_count || 0} productos, ${v.bitacora_count || 0} entradas bitacora
+        </div>
+        <div style="font-size:.72rem;color:var(--g400)">${products}</div>
+        ${warnings}
+        <div style="margin-top:.6rem;display:flex;gap:.5rem">
+          <button class="btn btn-primary" onclick="downloadReport(${result.report_id})" style="background:var(--teal)">
+            Descargar ${result.zip_filename}
+          </button>
+          <button class="btn btn-outline" onclick="sendReport(${result.report_id})">Marcar Enviado al SAT</button>
+        </div>
+        <p style="color:var(--g500);font-size:.68rem;margin-top:.5rem;margin-bottom:0">
+          Sube este .zip al portal SAT: sat.gob.mx/tramites/01116 &rarr; Iniciar &rarr; e.firma &rarr; Adjuntar .zip &rarr; Firmar &rarr; Obtener acuse
+        </p>
+      </div>`;
+
+    // Refresh report list
+    setTimeout(() => loadReportes(), 2000);
+
+  } catch(e) {
+    resultDiv.style.display = 'block';
+    resultDiv.innerHTML = `<div class="form-msg error">${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+  }
 }
 
 // ----------------------------------------------------------------

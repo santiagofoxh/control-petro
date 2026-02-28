@@ -255,6 +255,7 @@ async function loadReportes() {
             <label class="form-label">Fuente de Datos</label>
             <select class="form-select" id="xmlSource" onchange="toggleXmlDataSource()">
               <option value="manual">Ingresar datos manualmente</option>
+              <option value="upload">Subir Documento (PDF, Excel, Word, Imagen)</option>
               <option value="database">Usar datos de ControlPetro</option>
             </select>
           </div>
@@ -289,6 +290,35 @@ TANQUE DIESEL (TQ-0003):
   Inventario Final: 14,000L"></textarea>
           </div>
         </div>
+        <div id="xmlUploadData" style="display:none;margin-bottom:.6rem">
+          <div id="xmlDropZone" style="border:2px dashed var(--g600);border-radius:8px;padding:1.5rem;text-align:center;cursor:pointer;transition:all .2s"
+               ondragover="event.preventDefault();this.style.borderColor='var(--teal)';this.style.background='rgba(13,148,136,.08)'"
+               ondragleave="this.style.borderColor='var(--g600)';this.style.background='transparent'"
+               ondrop="handleFileDrop(event)"
+               onclick="document.getElementById('xmlFileInput').click()">
+            <div style="font-size:2rem;margin-bottom:.4rem;color:var(--g500)">&#128194;</div>
+            <p style="color:var(--g400);font-size:.8rem;margin:0">Arrastra tu archivo aqui o haz clic para seleccionar</p>
+            <p style="color:var(--g600);font-size:.7rem;margin:.3rem 0 0">PDF, XLSX, DOCX, JPG, PNG (max 10MB)</p>
+            <input type="file" id="xmlFileInput" style="display:none" accept=".pdf,.xlsx,.xls,.docx,.jpg,.jpeg,.png,.webp" onchange="handleFileSelect(this)">
+          </div>
+          <div id="xmlFileInfo" style="display:none;margin-top:.5rem;padding:.5rem .7rem;background:rgba(13,148,136,.06);border-radius:6px;display:flex;align-items:center;gap:.5rem">
+            <span style="color:var(--teal);font-size:.8rem" id="xmlFileName"></span>
+            <span style="color:var(--g500);font-size:.7rem" id="xmlFileSize"></span>
+            <button class="btn btn-outline" onclick="clearUploadedFile()" style="margin-left:auto;padding:2px 8px;font-size:.7rem">Quitar</button>
+          </div>
+          <div style="margin-top:.5rem">
+            <button class="btn btn-primary" onclick="extractFromDocument()" id="btnExtract" style="background:var(--teal);padding:8px 20px;font-size:.8rem">
+              Analizar Documento con IA
+            </button>
+            <span id="extractSpinner" style="display:none;color:var(--teal);font-size:.78rem;margin-left:8px">
+              <span class="spinner" style="width:16px;height:16px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px"></span>
+              Analizando documento...
+            </span>
+          </div>
+        </div>
+
+        <div id="xmlExtractResult" style="display:none;margin-bottom:.6rem"></div>
+
         <div style="display:flex;gap:.5rem;align-items:center">
           <button class="btn btn-primary" onclick="generateSatXml()" id="btnGenXml" style="background:var(--teal);padding:10px 24px;font-size:.82rem">
             Generar XML con Opus 4.6
@@ -387,7 +417,286 @@ async function sendReport(id) {
 function toggleXmlDataSource() {
   const source = document.getElementById('xmlSource').value;
   const manual = document.getElementById('xmlManualData');
+  const upload = document.getElementById('xmlUploadData');
+  const extractResult = document.getElementById('xmlExtractResult');
   if (manual) manual.style.display = source === 'manual' ? 'block' : 'none';
+  if (upload) upload.style.display = source === 'upload' ? 'block' : 'none';
+  if (extractResult && source !== 'upload') extractResult.style.display = 'none';
+}
+
+// ----------------------------------------------------------------
+//  Document Upload & Extraction
+// ----------------------------------------------------------------
+let uploadedFile = null;
+let extractedData = null;
+
+function handleFileDrop(e) {
+  e.preventDefault();
+  const zone = document.getElementById('xmlDropZone');
+  zone.style.borderColor = 'var(--g600)';
+  zone.style.background = 'transparent';
+  if (e.dataTransfer.files.length > 0) {
+    setUploadedFile(e.dataTransfer.files[0]);
+  }
+}
+
+function handleFileSelect(input) {
+  if (input.files.length > 0) {
+    setUploadedFile(input.files[0]);
+  }
+}
+
+function setUploadedFile(file) {
+  const allowed = ['pdf', 'xlsx', 'xls', 'docx', 'jpg', 'jpeg', 'png', 'webp'];
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (!allowed.includes(ext)) {
+    alert('Tipo de archivo no soportado. Use PDF, XLSX, DOCX, JPG o PNG.');
+    return;
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    alert('Archivo demasiado grande. Maximo 10MB.');
+    return;
+  }
+  uploadedFile = file;
+  const info = document.getElementById('xmlFileInfo');
+  document.getElementById('xmlFileName').textContent = file.name;
+  document.getElementById('xmlFileSize').textContent = `(${(file.size / 1024).toFixed(0)} KB)`;
+  info.style.display = 'flex';
+}
+
+function clearUploadedFile() {
+  uploadedFile = null;
+  extractedData = null;
+  document.getElementById('xmlFileInfo').style.display = 'none';
+  document.getElementById('xmlFileInput').value = '';
+  document.getElementById('xmlExtractResult').style.display = 'none';
+}
+
+async function extractFromDocument() {
+  if (!uploadedFile) {
+    alert('Selecciona un archivo primero.');
+    return;
+  }
+
+  const btn = document.getElementById('btnExtract');
+  const spinner = document.getElementById('extractSpinner');
+  const resultDiv = document.getElementById('xmlExtractResult');
+
+  btn.disabled = true;
+  spinner.style.display = 'inline';
+  resultDiv.style.display = 'none';
+
+  try {
+    const formData = new FormData();
+    formData.append('file', uploadedFile);
+
+    const resp = await fetch('/api/sat-xml/extract', { method: 'POST', body: formData });
+    const result = await resp.json();
+
+    if (result.error) {
+      resultDiv.style.display = 'block';
+      resultDiv.innerHTML = `<div class="form-msg error">${result.error}</div>`;
+      return;
+    }
+
+    extractedData = result.extracted_data;
+    const confidence = result.confidence || 50;
+    const notes = result.notes || [];
+    const tokens = result.tokens_used;
+
+    // Confidence badge color
+    const confColor = confidence >= 80 ? 'var(--green)' : confidence >= 50 ? 'var(--orange)' : 'var(--red)';
+    const confLabel = confidence >= 80 ? 'Alta' : confidence >= 50 ? 'Media' : 'Baja';
+
+    // Build notes HTML
+    const notesHtml = notes.length > 0
+      ? `<div style="margin-top:.5rem;padding:.4rem .6rem;background:rgba(249,115,22,.08);border-radius:6px;border-left:3px solid var(--orange)">
+           <div style="color:var(--orange);font-size:.72rem;font-weight:600;margin-bottom:.3rem">Notas y Advertencias:</div>
+           ${notes.map(n => `<div style="color:var(--g400);font-size:.72rem;padding:.1rem 0">&#x26A0; ${n}</div>`).join('')}
+         </div>` : '';
+
+    // Build editable fields for station info
+    const ed = extractedData;
+    const rfcVal = ed.rfc || '';
+    const permisoVal = ed.permiso || '';
+    const claveVal = ed.clave_instalacion || '';
+    const fechaVal = ed.fecha || new Date().toISOString().split('T')[0];
+
+    // Fill in the main form fields if available
+    if (rfcVal) document.getElementById('xmlRfc').value = rfcVal;
+    if (permisoVal) document.getElementById('xmlPermiso').value = permisoVal;
+    if (claveVal) document.getElementById('xmlClave').value = claveVal;
+    if (fechaVal) document.getElementById('xmlFecha').value = fechaVal;
+
+    // Build tanks table
+    const tanques = ed.tanques || [];
+    const tanquesRows = tanques.map((t, i) => `<tr>
+      <td><input class="form-input" style="font-size:.72rem;padding:4px 6px" value="${t.nombre || ''}" id="ext_tq_nombre_${i}"></td>
+      <td><select class="form-select" style="font-size:.72rem;padding:4px 6px" id="ext_tq_prod_${i}">
+        <option value="magna" ${t.producto === 'magna' ? 'selected' : ''}>Magna</option>
+        <option value="premium" ${t.producto === 'premium' ? 'selected' : ''}>Premium</option>
+        <option value="diesel" ${t.producto === 'diesel' ? 'selected' : ''}>Diesel</option>
+      </select></td>
+      <td><input type="number" class="form-input" style="font-size:.72rem;padding:4px 6px;width:80px" value="${t.capacidad_litros || ''}" id="ext_tq_cap_${i}"></td>
+      <td><input type="number" class="form-input" style="font-size:.72rem;padding:4px 6px;width:80px" value="${t.inventario_inicial || ''}" id="ext_tq_ini_${i}"></td>
+      <td><input type="number" class="form-input" style="font-size:.72rem;padding:4px 6px;width:80px" value="${t.inventario_final || ''}" id="ext_tq_fin_${i}"></td>
+      <td style="text-align:center">${t.uncertain ? '<span style="color:var(--orange);font-size:.7rem">&#x26A0;</span>' : '<span style="color:var(--green);font-size:.7rem">&#x2713;</span>'}</td>
+    </tr>`).join('');
+
+    // Build receptions table
+    const recepciones = ed.recepciones || [];
+    const recepRows = recepciones.map((r, i) => `<tr>
+      <td><input class="form-input" style="font-size:.72rem;padding:4px 6px" value="${r.tanque || ''}" id="ext_rec_tq_${i}"></td>
+      <td><input type="number" class="form-input" style="font-size:.72rem;padding:4px 6px;width:80px" value="${r.litros || ''}" id="ext_rec_litros_${i}"></td>
+      <td><input class="form-input" style="font-size:.72rem;padding:4px 6px" value="${r.proveedor || ''}" id="ext_rec_prov_${i}"></td>
+      <td><input class="form-input" style="font-size:.72rem;padding:4px 6px;width:100px" value="${r.num_factura || ''}" id="ext_rec_fact_${i}"></td>
+      <td><input type="number" class="form-input" style="font-size:.72rem;padding:4px 6px;width:70px" value="${r.precio_litro || ''}" step="0.01" id="ext_rec_precio_${i}"></td>
+      <td style="text-align:center">${r.uncertain ? '<span style="color:var(--orange);font-size:.7rem">&#x26A0;</span>' : '<span style="color:var(--green);font-size:.7rem">&#x2713;</span>'}</td>
+    </tr>`).join('');
+
+    // Build deliveries table
+    const entregas = ed.entregas || [];
+    const entregRows = entregas.map((e, i) => `<tr>
+      <td><input class="form-input" style="font-size:.72rem;padding:4px 6px" value="${e.tanque || ''}" id="ext_ent_tq_${i}"></td>
+      <td><input type="number" class="form-input" style="font-size:.72rem;padding:4px 6px;width:80px" value="${e.litros || ''}" id="ext_ent_litros_${i}"></td>
+      <td><input class="form-input" style="font-size:.72rem;padding:4px 6px" value="${e.dispensario || ''}" id="ext_ent_disp_${i}"></td>
+      <td style="text-align:center">${e.uncertain ? '<span style="color:var(--orange);font-size:.7rem">&#x26A0;</span>' : '<span style="color:var(--green);font-size:.7rem">&#x2713;</span>'}</td>
+    </tr>`).join('');
+
+    const tokensHtml = tokens ? `<span style="color:var(--g500);font-size:.68rem;margin-left:8px">(${tokens.input + tokens.output} tokens)</span>` : '';
+
+    resultDiv.style.display = 'block';
+    resultDiv.innerHTML = `
+      <div style="background:rgba(13,148,136,.06);border:1px solid var(--teal);border-radius:8px;padding:.8rem">
+        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;flex-wrap:wrap">
+          <span style="background:${confColor};color:#000;font-weight:700;padding:3px 10px;border-radius:12px;font-size:.75rem">
+            Confianza: ${confidence}/100 (${confLabel})
+          </span>
+          <span style="color:var(--g400);font-size:.75rem">Datos extraidos de <strong>${uploadedFile.name}</strong></span>
+          ${tokensHtml}
+        </div>
+        ${notesHtml}
+
+        <div style="margin-top:.6rem">
+          <div style="color:var(--w);font-size:.78rem;font-weight:600;margin-bottom:.3rem">Tanques</div>
+          <div class="table-wrap" style="margin-bottom:.5rem">
+            <table style="font-size:.72rem">
+              <thead><tr><th>Tanque</th><th>Producto</th><th>Capacidad (L)</th><th>Inv. Inicial</th><th>Inv. Final</th><th>OK</th></tr></thead>
+              <tbody>${tanquesRows || '<tr><td colspan="6" style="color:var(--g500);text-align:center">No se detectaron tanques</td></tr>'}</tbody>
+            </table>
+          </div>
+        </div>
+
+        ${recepciones.length > 0 ? `<div style="margin-top:.5rem">
+          <div style="color:var(--w);font-size:.78rem;font-weight:600;margin-bottom:.3rem">Recepciones</div>
+          <div class="table-wrap" style="margin-bottom:.5rem">
+            <table style="font-size:.72rem">
+              <thead><tr><th>Tanque</th><th>Litros</th><th>Proveedor</th><th>Factura</th><th>$/L</th><th>OK</th></tr></thead>
+              <tbody>${recepRows}</tbody>
+            </table>
+          </div>
+        </div>` : ''}
+
+        ${entregas.length > 0 ? `<div style="margin-top:.5rem">
+          <div style="color:var(--w);font-size:.78rem;font-weight:600;margin-bottom:.3rem">Entregas/Ventas</div>
+          <div class="table-wrap" style="margin-bottom:.5rem">
+            <table style="font-size:.72rem">
+              <thead><tr><th>Tanque</th><th>Litros</th><th>Dispensario</th><th>OK</th></tr></thead>
+              <tbody>${entregRows}</tbody>
+            </table>
+          </div>
+        </div>` : ''}
+
+        <div style="margin-top:.6rem;display:flex;gap:.5rem">
+          <button class="btn btn-primary" onclick="confirmExtractedData()" style="background:var(--green);padding:8px 20px;font-size:.8rem">
+            Confirmar y Generar XML
+          </button>
+          <button class="btn btn-outline" onclick="extractFromDocument()" style="padding:8px 16px;font-size:.78rem">
+            Re-analizar
+          </button>
+        </div>
+        <p style="color:var(--g500);font-size:.68rem;margin-top:.4rem;margin-bottom:0">
+          Revisa y edita los datos extraidos antes de generar el XML. Los campos marcados con &#x26A0; requieren atencion.
+        </p>
+      </div>`;
+
+  } catch(e) {
+    resultDiv.style.display = 'block';
+    resultDiv.innerHTML = `<div class="form-msg error">${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+  }
+}
+
+function confirmExtractedData() {
+  if (!extractedData) {
+    alert('No hay datos extraidos. Analiza un documento primero.');
+    return;
+  }
+
+  // Read edited values from the review tables
+  const tanques = extractedData.tanques || [];
+  const recepciones = extractedData.recepciones || [];
+  const entregas = extractedData.entregas || [];
+
+  let rawLines = [];
+  const fecha = document.getElementById('xmlFecha').value;
+  rawLines.push(`FECHA: ${fecha}`);
+  rawLines.push('');
+
+  // Tanks
+  tanques.forEach((t, i) => {
+    const nombre = (document.getElementById(`ext_tq_nombre_${i}`) || {}).value || t.nombre;
+    const prod = (document.getElementById(`ext_tq_prod_${i}`) || {}).value || t.producto;
+    const cap = (document.getElementById(`ext_tq_cap_${i}`) || {}).value || t.capacidad_litros;
+    const ini = (document.getElementById(`ext_tq_ini_${i}`) || {}).value || t.inventario_inicial;
+    const fin = (document.getElementById(`ext_tq_fin_${i}`) || {}).value || t.inventario_final;
+
+    rawLines.push(`TANQUE ${nombre} (${prod.toUpperCase()}):`);
+    rawLines.push(`  Capacidad: ${cap}L`);
+    rawLines.push(`  Inventario Inicial: ${ini}L`);
+
+    // Find receptions for this tank
+    recepciones.forEach((r, j) => {
+      const rTq = (document.getElementById(`ext_rec_tq_${j}`) || {}).value || r.tanque;
+      if (rTq === nombre || rTq === t.nombre) {
+        const litros = (document.getElementById(`ext_rec_litros_${j}`) || {}).value || r.litros;
+        const prov = (document.getElementById(`ext_rec_prov_${j}`) || {}).value || r.proveedor;
+        const fact = (document.getElementById(`ext_rec_fact_${j}`) || {}).value || r.num_factura;
+        const precio = (document.getElementById(`ext_rec_precio_${j}`) || {}).value || r.precio_litro;
+        rawLines.push(`  Recepcion: ${litros}L (Factura ${fact}, Proveedor: ${prov}, RFC: ${r.rfc_proveedor || 'N/A'})`);
+        rawLines.push(`  Precio por litro: $${precio}`);
+      }
+    });
+
+    // Find deliveries for this tank
+    let totalEntregas = 0;
+    entregas.forEach((e, j) => {
+      const eTq = (document.getElementById(`ext_ent_tq_${j}`) || {}).value || e.tanque;
+      if (eTq === nombre || eTq === t.nombre) {
+        const litros = (document.getElementById(`ext_ent_litros_${j}`) || {}).value || e.litros;
+        const disp = (document.getElementById(`ext_ent_disp_${j}`) || {}).value || e.dispensario;
+        totalEntregas += parseFloat(litros) || 0;
+        rawLines.push(`  Litros Vendidos: ${litros}L via ${disp}`);
+      }
+    });
+
+    rawLines.push(`  Inventario Final: ${fin}L`);
+    if (t.temperatura) rawLines.push(`  Temperatura promedio: ${t.temperatura}Â°C`);
+    rawLines.push('');
+  });
+
+  // Set the raw data textarea and switch to manual mode for generation
+  const rawDataEl = document.getElementById('xmlRawData');
+  if (rawDataEl) rawDataEl.value = rawLines.join('\n');
+
+  // Switch source to manual so generateSatXml picks up the textarea
+  document.getElementById('xmlSource').value = 'manual';
+  toggleXmlDataSource();
+
+  // Auto-trigger XML generation
+  generateSatXml();
 }
 
 async function generateSatXml() {

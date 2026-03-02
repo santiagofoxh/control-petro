@@ -7,6 +7,44 @@ let charts = {};
 let currentPage = 'dashboard';
 
 // ----------------------------------------------------------------
+//  Theme Toggle (Dark / Light)
+// ----------------------------------------------------------------
+const SUN_ICON = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+const MOON_ICON = '<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>';
+
+function updateThemeIcon() {
+  const icon = document.getElementById('themeIcon');
+  if (!icon) return;
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  icon.innerHTML = isLight ? MOON_ICON : SUN_ICON;
+}
+
+function toggleTheme() {
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  if (isLight) {
+    document.documentElement.removeAttribute('data-theme');
+    localStorage.setItem('cp-theme', 'dark');
+  } else {
+    document.documentElement.setAttribute('data-theme', 'light');
+    localStorage.setItem('cp-theme', 'light');
+  }
+  updateThemeIcon();
+  // Re-render charts with updated colors if on dashboard/inventario
+  if (currentPage === 'dashboard' || currentPage === 'inventario') {
+    destroyCharts();
+    loadPage(currentPage);
+  }
+}
+
+// Helper: get current chart label color based on theme
+function chartTextColor() {
+  return getComputedStyle(document.documentElement).getPropertyValue('--g400').trim() || '#94a3b8';
+}
+
+// Init icon on page load
+document.addEventListener('DOMContentLoaded', updateThemeIcon);
+
+// ----------------------------------------------------------------
 //  Navigation
 // ----------------------------------------------------------------
 function navigate(page) {
@@ -830,8 +868,7 @@ async function loadInventario() {
           </tr>`).join('')}</tbody>
         </table>
       </div>
-    </div>
-
+    </div<j
     <div class="panel">
       <div class="panel-header"><span class="panel-title">Flujo de Inventario (7 Dias)</span></div>
       <div class="chart-wrap"><canvas id="chartInvFlow"></canvas></div>
@@ -865,7 +902,7 @@ function renderInventoryCharts(summary, history) {
         labels: ['Magna', 'Premium', 'Diesel'],
         datasets: [{ data: [summary.magna, summary.premium, summary.diesel], backgroundColor: [FUEL_COLORS.magna, FUEL_COLORS.premium, FUEL_COLORS.diesel], borderWidth: 0 }],
       },
-      options: { responsive: true, maintainAspectRatio: false, cutout: '60%', plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { family: 'Inter', size: 11 }, padding: 12 } } } },
+      options: { responsive: true, maintainAspectRatio: false, cutout: '60%', plugins: { legend: { position: 'bottom', labels: { color: chartTextColor(), font: { family: 'Inter', size: 11 }, padding: 12 } } } },
     });
   }
   const flow = document.getElementById('chartInvFlow');
@@ -1087,10 +1124,10 @@ async function loadEstaciones() {
 function chartOpts(opts = {}) {
   return {
     responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { labels: { color: '#94a3b8', font: { family: 'Inter', size: 11 }, padding: 12 } } },
+    plugins: { legend: { labels: { color: chartTextColor(), font: { family: 'Inter', size: 11 }, padding: 12 } } },
     scales: {
-      x: { stacked: opts.stacked || false, ticks: { color: '#64748b', font: { family: 'Inter', size: 10 } }, grid: { color: 'rgba(255,255,255,.04)' } },
-      y: { stacked: opts.stacked || false, ticks: { color: '#64748b', font: { family: 'Inter', size: 10 }, callback: opts.yCallback || (v => v) }, grid: { color: 'rgba(255,255,255,.04)' } },
+      x: { stacked: opts.stacked || false, ticks: { color: chartTextColor(), font: { family: 'Inter', size: 10 } }, grid: { color: document.documentElement.getAttribute('data-theme') === 'light' ? 'rgba(0,0,0,.06)' : 'rgba(255,255,255,.04)' } },
+      y: { stacked: opts.stacked || false, ticks: { color: chartTextColor(), font: { family: 'Inter', size: 10 }, callback: opts.yCallback || (v => v) }, grid: { color: document.documentElement.getAttribute('data-theme') === 'light' ? 'rgba(0,0,0,.06)' : 'rgba(255,255,255,.04)' } },
     },
   };
 }

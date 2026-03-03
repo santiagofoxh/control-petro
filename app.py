@@ -7,7 +7,7 @@ from flask import Flask, jsonify, request, send_from_directory, send_file, abort
 from database import db, Station, FuelTransaction, InventorySnapshot, Report, Prediction
 import reports
 import predictions
-import sat_xml_generator
+import sat_xml_generato
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -20,10 +20,15 @@ db.init_app(app)
 
 
 # ------------------------------------------------------------------ #
-#  Serve SPA frontend
+#  Serve frontend
 # ------------------------------------------------------------------ #
 @app.route("/")
-def index():
+def landing():
+    return send_from_directory("static", "landing.html")
+
+
+@app.route("/demo")
+def demo():
     return send_from_directory("static", "index.html")
 
 

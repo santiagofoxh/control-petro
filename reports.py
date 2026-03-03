@@ -200,7 +200,7 @@ def generate_cne_weekly(target_date=None):
     for i, w in enumerate(widths, 1):
         ws.column_dimensions[get_column_letter(i)].width = w
 
-    prices = {"magna": 23.45, "premium": 25.12, "diesel": 24.78}
+    prices = {"magna": 18.85, "premium": 20.60, "diesel": 22.50}
     row = 5
     for station in stations:
         for fuel_type in ["magna", "premium", "diesel"]:
@@ -369,7 +369,7 @@ def generate_price_report(target_date=None):
 
     row = 5
     for station in stations:
-        values = [station.name, station.code, "$23.45", "$25.12", "$24.78", "N/A", "Precio vigente"]
+        values = [station.name, station.code, "$18.85", "$20.60", "$22.50", "N/A", "Precio vigente"]
         for col, val in enumerate(values, 1):
             cell = ws.cell(row=row, column=col, value=val)
             cell.border = thin_border

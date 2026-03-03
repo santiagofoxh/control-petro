@@ -5,27 +5,17 @@ from datetime import datetime, date, timedelta
 from database import db, Station, FuelTransaction, InventorySnapshot
 
 
+# 8 confirmed real GazPro stations in Ciudad Juarez (March 2026)
+# Sources: marketing.gazpro.mx, gazpro.mx/estaciones
 STATIONS = [
-    {"code": "GP-001", "name": "Est. Tecnologico", "address": "Av. Tecnologico 4521, Col. Partido Iglesias", "lat": 31.6904, "lng": -106.4245, "mc": 50000, "pc": 25000, "dc": 50000},
-    {"code": "GP-003", "name": "Est. Nogales", "address": "Col. Nogales 1102", "lat": 31.7020, "lng": -106.4400, "mc": 40000, "pc": 20000, "dc": 40000},
-    {"code": "GP-007", "name": "Est. Pronaf", "address": "Av. Lincoln 890, Zona Pronaf", "lat": 31.7400, "lng": -106.4500, "mc": 45000, "pc": 25000, "dc": 35000},
-    {"code": "GP-014", "name": "Est. Zaragoza Norte", "address": "Blvd. Zaragoza 3300", "lat": 31.6600, "lng": -106.3700, "mc": 55000, "pc": 30000, "dc": 45000},
-    {"code": "GP-022", "name": "Est. Tomas Fernandez", "address": "Blvd. Tomas Fernandez 7800", "lat": 31.6800, "lng": -106.4100, "mc": 50000, "pc": 25000, "dc": 50000},
-    {"code": "GP-031", "name": "Est. Panamericana Km12", "address": "Carr. Panamericana Km 12", "lat": 31.6300, "lng": -106.4000, "mc": 60000, "pc": 20000, "dc": 60000},
-    {"code": "GP-038", "name": "Est. Americas", "address": "Av. de las Americas 1540", "lat": 31.7100, "lng": -106.4300, "mc": 40000, "pc": 20000, "dc": 35000},
-    {"code": "GP-042", "name": "Est. Insurgentes", "address": "Av. Insurgentes 2280", "lat": 31.7200, "lng": -106.4600, "mc": 45000, "pc": 25000, "dc": 40000},
-    {"code": "GP-047", "name": "Est. Partido Romero", "address": "Col. Partido Romero 560", "lat": 31.6500, "lng": -106.4200, "mc": 40000, "pc": 20000, "dc": 35000},
-    {"code": "GP-055", "name": "Est. Torres", "address": "Av. de las Torres 5500", "lat": 31.6700, "lng": -106.3900, "mc": 50000, "pc": 25000, "dc": 45000},
-    {"code": "GP-061", "name": "Est. Ejercito Nacional", "address": "Av. Ejercito Nacional 1200", "lat": 31.7300, "lng": -106.4400, "mc": 45000, "pc": 20000, "dc": 40000},
-    {"code": "GP-067", "name": "Est. Zaragoza Sur", "address": "Blvd. Zaragoza 8900", "lat": 31.6400, "lng": -106.3600, "mc": 55000, "pc": 30000, "dc": 50000},
-    {"code": "GP-073", "name": "Est. Gomez Morin", "address": "Paseo de la Victoria 3200", "lat": 31.7500, "lng": -106.4700, "mc": 40000, "pc": 25000, "dc": 35000},
-    {"code": "GP-079", "name": "Est. Waterfill", "address": "Blvd. Waterfill 1800", "lat": 31.6950, "lng": -106.4150, "mc": 45000, "pc": 20000, "dc": 40000},
-    {"code": "GP-085", "name": "Est. Juarez-Porvenir", "address": "Carr. Juarez-Porvenir Km 5", "lat": 31.6200, "lng": -106.3500, "mc": 50000, "pc": 20000, "dc": 55000},
-    {"code": "GP-091", "name": "Est. Panamericana Sur", "address": "Carr. Panamericana Km 28", "lat": 31.5900, "lng": -106.3800, "mc": 55000, "pc": 25000, "dc": 60000},
-    {"code": "GP-096", "name": "Est. Ramon Rayon", "address": "Av. Ramon Rayon 4500", "lat": 31.7050, "lng": -106.4350, "mc": 40000, "pc": 20000, "dc": 35000},
-    {"code": "GP-100", "name": "Est. Paseo Triunfo", "address": "Paseo Triunfo de la Republica 6700", "lat": 31.7150, "lng": -106.4550, "mc": 50000, "pc": 25000, "dc": 45000},
-    {"code": "GP-102", "name": "Est. Lopez Mateos", "address": "Av. Lopez Mateos 3100", "lat": 31.7250, "lng": -106.4650, "mc": 45000, "pc": 20000, "dc": 40000},
-    {"code": "GP-105", "name": "Est. Hermanos Escobar", "address": "Av. Hermanos Escobar 5600", "lat": 31.7350, "lng": -106.4750, "mc": 40000, "pc": 25000, "dc": 35000},
+    {"code": "GP-EJR", "name": "Gazpro Ejercito",     "address": "Av. Ejercito Nacional 8694",              "lat": 31.7282, "lng": -106.4468, "mc": 50000, "pc": 25000, "dc": 45000},
+    {"code": "GP-MOR", "name": "Gazpro Morin",         "address": "Blvd. Manuel Gomez Morin 7396",           "lat": 31.7435, "lng": -106.4380, "mc": 50000, "pc": 25000, "dc": 45000},
+    {"code": "GP-ANA", "name": "Gazpro Anapra",        "address": "Blvd. Bernardo Norzagaray 3520",          "lat": 31.7830, "lng": -106.5320, "mc": 45000, "pc": 20000, "dc": 40000},
+    {"code": "GP-K20", "name": "Gazpro K20",           "address": "Carr. Panamericana 10325",                "lat": 31.6310, "lng": -106.3990, "mc": 55000, "pc": 20000, "dc": 55000},
+    {"code": "GP-FUN", "name": "Gazpro Fundadores",    "address": "Blvd. Talamas Camandari 1900",            "lat": 31.6950, "lng": -106.4240, "mc": 45000, "pc": 25000, "dc": 40000},
+    {"code": "GP-AME", "name": "Gazpro Americas",      "address": "Av. de la Raza, Col. Centro",             "lat": 31.7100, "lng": -106.4440, "mc": 40000, "pc": 20000, "dc": 35000},
+    {"code": "GP-CHA", "name": "Gazpro Charro",        "address": "Paseo Triunfo de la Republica / Av. del Charro", "lat": 31.7190, "lng": -106.4600, "mc": 50000, "pc": 25000, "dc": 45000},
+    {"code": "GP-INS", "name": "Gazpro Insurgentes",   "address": "Av. de los Insurgentes 2980",             "lat": 31.7220, "lng": -106.4560, "mc": 45000, "pc": 20000, "dc": 40000},
 ]
 
 # Base daily demand profiles (liters/day) by station size
@@ -103,7 +93,7 @@ def seed_database():
                     tx = FuelTransaction(
                         station_id=station.id, fuel_type=ft,
                         transaction_type="received", liters=delivery,
-                        price_per_liter={"magna": 21.50, "premium": 23.00, "diesel": 22.80}[ft],
+                        price_per_liter={"magna": 17.20, "premium": 18.80, "diesel": 20.60}[ft],
                         timestamp=ts,
                     )
                     db.session.add(tx)
@@ -122,7 +112,7 @@ def seed_database():
                         tx = FuelTransaction(
                             station_id=station.id, fuel_type=ft,
                             transaction_type="sold", liters=round(block_liters, 1),
-                            price_per_liter={"magna": 23.45, "premium": 25.12, "diesel": 24.78}[ft],
+                            price_per_liter={"magna": 18.85, "premium": 20.60, "diesel": 22.50}[ft],
                             timestamp=ts,
                         )
                         db.session.add(tx)

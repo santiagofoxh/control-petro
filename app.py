@@ -7,7 +7,7 @@ from flask import Flask, jsonify, request, send_from_directory, send_file, abort
 from database import db, Station, FuelTransaction, InventorySnapshot, Report, Prediction
 import reports
 import predictions
-import sat_xml_generato
+import sat_xml_generator
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 

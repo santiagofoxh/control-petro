@@ -2,11 +2,95 @@
 import random
 import numpy as np
 from datetime import datetime, date, timedelta
-from database import db, Station, FuelTransaction, InventorySnapshot
+from database import (
+    db, Organization, RazonSocial, User, Station,
+    FuelTransaction, InventorySnapshot,
+)
+from auth import hash_password
 
 
-# 8 confirmed real GazPro stations in Ciudad Juarez (March 2026)
-# Sources: marketing.gazpro.mx, gazpro.mx/estaciones
+# ------------------------------------------------------------------ #
+#  Organization & RazÃ³n Social structure
+# ------------------------------------------------------------------ #
+ORG = {"name": "GazPro", "slug": "gazpro"}
+
+RAZONES = [
+    {"name": "GazPro Norte", "rfc": "GNO210315AB1", "legal_name": "Gasolinera GazPro Norte SA de CV"},
+    {"name": "GazPro Sur",   "rfc": "GSU210315CD2", "legal_name": "Gasolinera GazPro Sur SA de CV"},
+]
+
+# Which stations go in which RazÃ³n Social (by code)
+RAZON_STATIONS = {
+    "GazPro Norte": ["GP-EJR", "GP-MOR", "GP-ANA", "GP-CHA"],
+    "GazPro Sur":   ["GP-K20", "GP-FUN", "GP-AME", "GP-INS"],
+}
+
+# ------------------------------------------------------------------ #
+#  Users
+# ------------------------------------------------------------------ #
+USERS = [
+    {
+        "email": "santiago@controlpetro.com",
+        "password": "admin123",
+        "name": "Santiago Fox",
+        "phone": "+526561000001",
+        "role": "platform_admin",
+        "razon": None,
+        "approved": True,
+    },
+    {
+        "email": "carlos@gazpro.mx",
+        "password": "gazpro123",
+        "name": "Carlos Medina",
+        "phone": "+526561000002",
+        "role": "org_admin",
+        "razon": None,
+        "approved": True,
+    },
+    {
+        "email": "lucia@gazpro.mx",
+        "password": "gazpro123",
+        "name": "Lucia Torres",
+        "phone": "+526561000003",
+        "role": "group_manager",
+        "razon": "GazPro Norte",
+        "approved": True,
+    },
+    {
+        "email": "roberto@gazpro.mx",
+        "password": "gazpro123",
+        "name": "Roberto Gonzalez",
+        "phone": "+526561000004",
+        "role": "group_manager",
+        "razon": "GazPro Sur",
+        "approved": True,
+    },
+    {
+        "email": "maria@gazpro.mx",
+        "password": "operator1",
+        "name": "Maria Sanchez",
+        "phone": "+526561000005",
+        "role": "operator",
+        "razon": "GazPro Norte",
+        "stations": ["GP-EJR", "GP-MOR"],
+        "approved": True,
+    },
+    {
+        "email": "jorge@gazpro.mx",
+        "password": "operator2",
+        "name": "Jorge Ramirez",
+        "phone": "+526561000006",
+        "role": "operator",
+        "razon": "GazPro Sur",
+        "stations": ["GP-K20"],
+        "approved": False,
+    },
+]
+
+
+# ------------------------------------------------------------------ #
+#  8 confirmed real GazPro stations in Ciudad Juarez (March 2026)
+# ------------------------------------------------------------------ #
 STATIONS = [
     {"code": "GP-EJR", "name": "Gazpro Ejercito",     "address": "Av. Ejercito Nacional 8694",              "lat": 31.7282, "lng": -106.4468, "mc": 50000, "pc": 25000, "dc": 45000},
     {"code": "GP-MOR", "name": "Gazpro Morin",         "address": "Blvd. Manuel Gomez Morin 7396",           "lat": 31.7435, "lng": -106.4380, "mc": 50000, "pc": 25000, "dc": 45000},
@@ -39,23 +123,85 @@ def assign_demand_profile(station):
 
 
 def seed_database():
-    """Create stations, transactions, and snapshots for the last 30 days."""
+    """Create org hierarchy, users, stations, transactions, and snapshots."""
+
+    # ---- 1. Organization ----
+    print("Seeding organization...")
+    org = Organization(name=ORG["name"], slug=ORG["slug"], active=True)
+    db.session.add(org)
+    db.session.flush()
+
+    # ---- 2. Razones Sociales ----
+    print("Seeding razones sociales...")
+    razon_map = {}  # name -> RazonSocial object
+    for r in RAZONES:
+        rs = RazonSocial(
+            organization_id=org.id,
+            name=r["name"],
+            rfc=r["rfc"],
+            legal_name=r["legal_name"],
+            active=True,
+        )
+        db.session.add(rs)
+        razon_map[r["name"]] = rs
+    db.session.flush()
+
+    # ---- 3. Stations (linked to RazÃ³n Social) ----
     print("Seeding stations...")
+    station_map = {}  # code -> Station object
+    # Build reverse lookup: station code -> razon name
+    code_to_razon = {}
+    for razon_name, codes in RAZON_STATIONS.items():
+        for code in codes:
+            code_to_razon[code] = razon_name
+
     stations = []
     for s in STATIONS:
+        razon_name = code_to_razon.get(s["code"])
+        razon = razon_map.get(razon_name) if razon_name else None
         station = Station(
             code=s["code"], name=s["name"], address=s["address"],
             city="Ciudad Juarez", state="Chihuahua",
             latitude=s["lat"], longitude=s["lng"],
             magna_capacity=s["mc"], premium_capacity=s["pc"], diesel_capacity=s["dc"],
+            razon_social_id=razon.id if razon else None,
             active=True,
         )
         db.session.add(station)
         stations.append(station)
+        station_map[s["code"]] = station
     db.session.flush()
 
-    print(f"Created {len(stations)} stations. Generating 30 days of transaction data...")
+    # ---- 4. Users ----
+    print("Seeding users...")
+    for u in USERS:
+        razon = razon_map.get(u.get("razon")) if u.get("razon") else None
+        user = User(
+            email=u["email"],
+            password_hash=hash_password(u["password"]),
+            name=u["name"],
+            phone=u.get("phone"),
+            role=u["role"],
+            organization_id=org.id,
+            razon_social_id=razon.id if razon else None,
+            active=True,
+            approved_by_admin=u.get("approved", False),
+        )
+        db.session.add(user)
+        db.session.flush()
 
+        # Assign stations for operators
+        if u.get("stations"):
+            for code in u["stations"]:
+                st = station_map.get(code)
+                if st:
+                    user.assigned_stations.append(st)
+    db.session.commit()
+
+    print(f"Created {len(USERS)} users, 1 org, {len(RAZONES)} razones sociales.")
+
+    # ---- 5. Transaction data (30 days) ----
+    print(f"Generating 30 days of transaction data for {len(stations)} stations...")
     today = date.today()
     random.seed(42)
     np.random.seed(42)
@@ -95,6 +241,7 @@ def seed_database():
                         transaction_type="received", liters=delivery,
                         price_per_liter={"magna": 17.20, "premium": 18.80, "diesel": 20.60}[ft],
                         timestamp=ts,
+                        source="web",
                     )
                     db.session.add(tx)
                     inventory[ft] += delivery
@@ -114,6 +261,7 @@ def seed_database():
                             transaction_type="sold", liters=round(block_liters, 1),
                             price_per_liter={"magna": 18.85, "premium": 20.60, "diesel": 22.50}[ft],
                             timestamp=ts,
+                            source="web",
                         )
                         db.session.add(tx)
                         inventory[ft] -= block_liters

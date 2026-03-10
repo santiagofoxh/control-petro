@@ -1,7 +1,7 @@
 """Authentication and authorization for Control Petro.
 
 Uses JWT tokens for stateless auth. Supports:
-- Web dashboard login (email + password → JWT)
+- Web dashboard login (email + password â JWT)
 - OpenClaw service token (pre-shared bearer token for MCP/WhatsApp)
 - Role-based access control (platform_admin, org_admin, group_manager, operator)
 """
@@ -30,7 +30,7 @@ OPENCLAW_SERVICE_TOKEN = os.environ.get("OPENCLAW_SERVICE_TOKEN", "")
 
 
 # ------------------------------------------------------------------ #
-#  Password hashing (using hashlib — no extra C dependencies)
+#  Password hashing (using hashlib â no extra C dependencies)
 # ------------------------------------------------------------------ #
 def hash_password(password: str) -> str:
     """Hash password with PBKDF2-SHA256."""
@@ -120,6 +120,59 @@ def require_auth(f):
     return decorated
 
 
+def optional_auth(f):
+    """Decorator: try JWT auth, but allow unauthenticated (demo) access.
+
+    When no token is provided, sets g.demo_mode = True and gives
+    platform_admin-level read access (all stations visible).
+    """
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth_header = request.headers.get("Authorization", "")
+
+        if not auth_header.startswith("Bearer "):
+            # No auth â demo / public mode
+            g.current_user = None
+            g.is_service = False
+            g.demo_mode = True
+            g.service_role = "platform_admin"  # demo sees everything
+            return f(*args, **kwargs)
+
+        # Has a token â validate it normally
+        token = auth_header[7:]
+
+        if OPENCLAW_SERVICE_TOKEN and hmac.compare_digest(token, OPENCLAW_SERVICE_TOKEN):
+            behalf_user_id = request.headers.get("X-On-Behalf-Of")
+            if behalf_user_id:
+                user = User.query.get(int(behalf_user_id))
+                if user:
+                    g.current_user = user
+                    g.is_service = True
+                    g.demo_mode = False
+                    return f(*args, **kwargs)
+            g.current_user = None
+            g.is_service = True
+            g.demo_mode = False
+            g.service_role = "platform_admin"
+            return f(*args, **kwargs)
+
+        try:
+            payload = decode_token(token)
+            user = User.query.get(int(payload["sub"]))
+            if not user or not user.active:
+                return jsonify({"error": "Usuario no encontrado o inactivo."}), 401
+            g.current_user = user
+            g.is_service = False
+            g.demo_mode = False
+            return f(*args, **kwargs)
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Token expirado."}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Token invalido."}), 401
+
+    return decorated
+
+
 def require_role(*allowed_roles):
     """Decorator: require specific role(s). Must be used AFTER require_auth."""
     def decorator(f):
@@ -140,14 +193,14 @@ def require_role(*allowed_roles):
 
 
 # ------------------------------------------------------------------ #
-#  Scope helpers — filter data by user's access level
+#  Scope helpers â filter data by user's access level
 # ------------------------------------------------------------------ #
 def get_accessible_station_ids() -> list:
     """Return list of station IDs the current user can access."""
     from database import Station, RazonSocial
 
-    if g.is_service and not g.current_user:
-        # Service token with no user context: all stations
+    # Demo mode or service token with no user: all stations
+    if getattr(g, 'demo_mode', False) or (g.is_service and not g.current_user):
         return [s.id for s in Station.query.filter_by(active=True).all()]
 
     user = g.current_user

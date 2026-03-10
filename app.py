@@ -12,7 +12,7 @@ from database import (
     Organization, RazonSocial, User,
 )
 from auth import (
-    require_auth, require_role, hash_password, verify_password,
+    require_auth, optional_auth, require_role, hash_password, verify_password,
     create_token, get_accessible_station_ids, get_accessible_razon_ids,
 )
 import reports
@@ -323,7 +323,7 @@ def api_create_razon():
 #  API: Dashboard (now scope-filtered)
 # ------------------------------------------------------------------ #
 @app.route("/api/dashboard")
-@require_auth
+@optional_auth
 def api_dashboard():
     today = date.today()
     start = datetime.combine(today, datetime.min.time())
@@ -419,7 +419,7 @@ def api_dashboard():
 
 
 @app.route("/api/dashboard/sales-chart")
-@require_auth
+@optional_auth
 def api_sales_chart():
     days = request.args.get("days", 7, type=int)
     today = date.today()
@@ -450,7 +450,7 @@ def api_sales_chart():
 #  API: Stations (scope-filtered)
 # ------------------------------------------------------------------ #
 @app.route("/api/stations")
-@require_auth
+@optional_auth
 def api_stations():
     today = date.today()
     station_ids = get_accessible_station_ids()
@@ -530,7 +530,7 @@ def api_station_detail(station_id):
 #  API: Inventory (scope-filtered)
 # ------------------------------------------------------------------ #
 @app.route("/api/inventory/summary")
-@require_auth
+@optional_auth
 def api_inventory_summary():
     today = date.today()
     station_ids = get_accessible_station_ids()
@@ -549,7 +549,7 @@ def api_inventory_summary():
 
 
 @app.route("/api/inventory/history")
-@require_auth
+@optional_auth
 def api_inventory_history():
     days = request.args.get("days", 7, type=int)
     today = date.today()
@@ -657,7 +657,7 @@ def api_record_transaction():
 
 # ------------------------------------------------------------------ #
 #  API: Reports (scope-filtered)
-# ------------------------------------------------------------------ #
+# ------------------------------------------------------------ #
 @app.route("/api/reports/generate", methods=["POST"])
 @require_auth
 def api_generate_report():
@@ -681,7 +681,7 @@ def api_generate_report():
 
 
 @app.route("/api/reports/history")
-@require_auth
+@optional_auth
 def api_report_history():
     limit = request.args.get("limit", 50, type=int)
     return jsonify(reports.get_report_history(limit))
@@ -714,7 +714,7 @@ def api_generate_all_reports():
     for rtype, gen in [
         ("sat_volumetric", reports.generate_sat_volumetric),
         ("cne_weekly", reports.generate_cne_weekly),
-        ("inventory_close", reports.generate_inventory_close),
+        ("inventory_close". reports.generate_inventory_close),
         ("price_tariff", reports.generate_price_report),
     ]:
         try:
@@ -728,7 +728,7 @@ def api_generate_all_reports():
 #  API: Predictions (scope-filtered)
 # ------------------------------------------------------------------ #
 @app.route("/api/predictions/recommendations")
-@require_auth
+@optional_auth
 def api_recommendations():
     hours = request.args.get("hours", 72, type=int)
     recs = predictions.generate_order_recommendations(horizon_hours=hours)
@@ -736,7 +736,7 @@ def api_recommendations():
 
 
 @app.route("/api/predictions/forecast")
-@require_auth
+@optional_auth
 def api_forecast():
     station_id = request.args.get("station_id", type=int)
     days = request.args.get("days", 7, type=int)
@@ -773,7 +773,7 @@ def api_station_prediction(station_id, fuel_type):
 #  API: Alerts (scope-filtered)
 # ------------------------------------------------------------------ #
 @app.route("/api/alerts")
-@require_auth
+@optional_auth
 def api_alerts():
     today = date.today()
     station_ids = get_accessible_station_ids()

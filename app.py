@@ -1,10 +1,20 @@
-"""Control Petro - AI platform for Mexican petroleum distributors."""
+"""Control Petro v2 â AI platform for Mexican petroleum distributors.
+
+Now with multi-tenant auth, organization hierarchy, and OpenClaw integration.
+"""
 import os
 import json
 from datetime import datetime, date, timedelta
-from flask import Flask, jsonify, request, send_from_directory, send_file, abort
+from flask import Flask, jsonify, request, send_from_directory, send_file, abort, g
 
-from database import db, Station, FuelTransaction, InventorySnapshot, Report, Prediction
+from database import (
+    db, Station, FuelTransaction, InventorySnapshot, Report, Prediction,
+    Organization, RazonSocial, User,
+)
+from auth import (
+    require_auth, require_role, hash_password, verify_password,
+    create_token, get_accessible_station_ids, get_accessible_razon_ids,
+)
 import reports
 import predictions
 import sat_xml_generator
@@ -20,7 +30,7 @@ db.init_app(app)
 
 
 # ------------------------------------------------------------------ #
-#  Serve frontend
+#  Serve frontend (public â no auth)
 # ------------------------------------------------------------------ #
 @app.route("/")
 def landing():
@@ -38,52 +48,335 @@ def serve_static(path):
 
 
 # ------------------------------------------------------------------ #
-#  API: Dashboard
+#  Auth: Login, Register, Profile
+# ------------------------------------------------------------------ #
+@app.route("/api/auth/login", methods=["POST"])
+def api_login():
+    """Authenticate user and return JWT token."""
+    data = request.json or {}
+    email = data.get("email", "").strip().lower()
+    password = data.get("password", "")
+
+    if not email or not password:
+        return jsonify({"error": "Email y contrasena requeridos."}), 400
+
+    user = User.query.filter_by(email=email).first()
+    if not user or not verify_password(password, user.password_hash):
+        return jsonify({"error": "Credenciales incorrectas."}), 401
+
+    if not user.active:
+        return jsonify({"error": "Cuenta desactivada. Contacta al administrador."}), 403
+
+    user.last_login = datetime.utcnow()
+    db.session.commit()
+
+    token = create_token(user)
+    return jsonify({
+        "token": token,
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "role": user.role,
+            "organization_id": user.organization_id,
+            "razon_social_id": user.razon_social_id,
+            "approved": user.approved_by_admin,
+        },
+    })
+
+
+@app.route("/api/auth/register", methods=["POST"])
+def api_register():
+    """Register a new operator account (pending admin approval for elevated access)."""
+    data = request.json or {}
+    email = data.get("email", "").strip().lower()
+    password = data.get("password", "")
+    name = data.get("name", "").strip()
+    phone = data.get("phone", "").strip()
+
+    if not email or not password or not name:
+        return jsonify({"error": "Nombre, email y contrasena requeridos."}), 400
+
+    if len(password) < 8:
+        return jsonify({"error": "Contrasena debe tener al menos 8 caracteres."}), 400
+
+    if User.query.filter_by(email=email).first():
+        return jsonify({"error": "Este email ya esta registrado."}), 409
+
+    user = User(
+        email=email,
+        password_hash=hash_password(password),
+        name=name,
+        phone=phone,
+        role="operator",
+        approved_by_admin=False,
+    )
+    db.session.add(user)
+    db.session.commit()
+
+    token = create_token(user)
+    return jsonify({
+        "token": token,
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "role": user.role,
+            "approved": user.approved_by_admin,
+        },
+        "message": "Cuenta creada. Un administrador debe asignarte estaciones.",
+    }), 201
+
+
+@app.route("/api/auth/me")
+@require_auth
+def api_me():
+    """Get current user profile."""
+    user = g.current_user
+    if not user:
+        return jsonify({"role": "platform_admin", "is_service": True})
+
+    result = {
+        "id": user.id,
+        "email": user.email,
+        "name": user.name,
+        "phone": user.phone,
+        "role": user.role,
+        "organization_id": user.organization_id,
+        "razon_social_id": user.razon_social_id,
+        "approved": user.approved_by_admin,
+        "whatsapp_verified": user.whatsapp_verified,
+    }
+
+    # Include org/group names
+    if user.organization:
+        result["organization_name"] = user.organization.name
+    if user.razon_social:
+        result["razon_social_name"] = user.razon_social.name
+
+    # Include accessible stations
+    station_ids = get_accessible_station_ids()
+    result["accessible_station_count"] = len(station_ids)
+
+    return jsonify(result)
+
+
+# ------------------------------------------------------------------ #
+#  Admin: User Management
+# ------------------------------------------------------------------ #
+@app.route("/api/admin/users")
+@require_auth
+@require_role("platform_admin", "org_admin")
+def api_list_users():
+    """List users (filtered by org for org_admin)."""
+    user = g.current_user
+    query = User.query
+
+    if user and user.role == "org_admin":
+        query = query.filter_by(organization_id=user.organization_id)
+
+    users = query.order_by(User.created_at.desc()).all()
+    return jsonify([{
+        "id": u.id,
+        "email": u.email,
+        "name": u.name,
+        "phone": u.phone,
+        "role": u.role,
+        "organization_id": u.organization_id,
+        "razon_social_id": u.razon_social_id,
+        "active": u.active,
+        "approved": u.approved_by_admin,
+        "whatsapp_verified": u.whatsapp_verified,
+        "last_login": u.last_login.isoformat() if u.last_login else None,
+        "created_at": u.created_at.isoformat() if u.created_at else None,
+    } for u in users])
+
+
+@app.route("/api/admin/users/<int:user_id>", methods=["PATCH"])
+@require_auth
+@require_role("platform_admin", "org_admin")
+def api_update_user(user_id):
+    """Update user role, org, group assignment, approval status."""
+    target = User.query.get_or_404(user_id)
+    data = request.json or {}
+
+    # org_admin can only manage users in their org
+    if g.current_user and g.current_user.role == "org_admin":
+        if target.organization_id != g.current_user.organization_id:
+            return jsonify({"error": "No tienes acceso a este usuario."}), 403
+
+    if "role" in data:
+        allowed_roles = ["operator", "group_manager", "org_admin", "platform_admin"]
+        if data["role"] not in allowed_roles:
+            return jsonify({"error": f"Rol invalido. Opciones: {', '.join(allowed_roles)}"}), 400
+        # Only platform_admin can create platform_admins
+        if data["role"] == "platform_admin" and (not g.current_user or g.current_user.role != "platform_admin"):
+            return jsonify({"error": "Solo un platform_admin puede asignar ese rol."}), 403
+        target.role = data["role"]
+
+    if "organization_id" in data:
+        target.organization_id = data["organization_id"]
+    if "razon_social_id" in data:
+        target.razon_social_id = data["razon_social_id"]
+    if "approved_by_admin" in data:
+        target.approved_by_admin = data["approved_by_admin"]
+    if "active" in data:
+        target.active = data["active"]
+    if "station_ids" in data:
+        # Assign stations to operator
+        stations = Station.query.filter(Station.id.in_(data["station_ids"])).all()
+        target.assigned_stations = stations
+
+    db.session.commit()
+    return jsonify({"success": True, "user_id": target.id})
+
+
+# ------------------------------------------------------------------ #
+#  Admin: Organizations & Razones Sociales
+# ------------------------------------------------------------------ #
+@app.route("/api/admin/organizations")
+@require_auth
+@require_role("platform_admin")
+def api_list_organizations():
+    orgs = Organization.query.order_by(Organization.name).all()
+    return jsonify([{
+        "id": o.id,
+        "name": o.name,
+        "slug": o.slug,
+        "active": o.active,
+        "razon_count": o.razones.count(),
+        "user_count": o.users.count(),
+    } for o in orgs])
+
+
+@app.route("/api/admin/organizations", methods=["POST"])
+@require_auth
+@require_role("platform_admin")
+def api_create_organization():
+    data = request.json or {}
+    name = data.get("name", "").strip()
+    slug = data.get("slug", "").strip().lower().replace(" ", "-")
+
+    if not name or not slug:
+        return jsonify({"error": "Nombre y slug requeridos."}), 400
+
+    if Organization.query.filter_by(slug=slug).first():
+        return jsonify({"error": "Ese slug ya existe."}), 409
+
+    org = Organization(name=name, slug=slug)
+    db.session.add(org)
+    db.session.commit()
+    return jsonify({"success": True, "id": org.id}), 201
+
+
+@app.route("/api/admin/razones-sociales")
+@require_auth
+@require_role("platform_admin", "org_admin")
+def api_list_razones():
+    user = g.current_user
+    query = RazonSocial.query
+
+    if user and user.role == "org_admin":
+        query = query.filter_by(organization_id=user.organization_id)
+
+    razones = query.order_by(RazonSocial.name).all()
+    return jsonify([{
+        "id": r.id,
+        "organization_id": r.organization_id,
+        "name": r.name,
+        "rfc": r.rfc,
+        "legal_name": r.legal_name,
+        "active": r.active,
+        "station_count": r.stations.count(),
+    } for r in razones])
+
+
+@app.route("/api/admin/razones-sociales", methods=["POST"])
+@require_auth
+@require_role("platform_admin", "org_admin")
+def api_create_razon():
+    data = request.json or {}
+    org_id = data.get("organization_id")
+    name = data.get("name", "").strip()
+    rfc = data.get("rfc", "").strip().upper()
+
+    if not name or not rfc or not org_id:
+        return jsonify({"error": "organization_id, nombre y RFC requeridos."}), 400
+
+    # org_admin can only create in their org
+    if g.current_user and g.current_user.role == "org_admin":
+        if org_id != g.current_user.organization_id:
+            return jsonify({"error": "No puedes crear grupos en otra organizacion."}), 403
+
+    razon = RazonSocial(
+        organization_id=org_id,
+        name=name,
+        rfc=rfc,
+        legal_name=data.get("legal_name", ""),
+    )
+    db.session.add(razon)
+    db.session.commit()
+    return jsonify({"success": True, "id": razon.id}), 201
+
+
+# ------------------------------------------------------------------ #
+#  API: Dashboard (now scope-filtered)
 # ------------------------------------------------------------------ #
 @app.route("/api/dashboard")
+@require_auth
 def api_dashboard():
     today = date.today()
     start = datetime.combine(today, datetime.min.time())
     end = datetime.combine(today, datetime.max.time())
 
-    # Total liters sold today
-    total_sold = db.session.query(
+    station_ids = get_accessible_station_ids()
+
+    # Total liters sold today (scoped)
+    sold_query = db.session.query(
         db.func.coalesce(db.func.sum(FuelTransaction.liters), 0)
     ).filter(
         FuelTransaction.transaction_type == "sold",
         FuelTransaction.timestamp.between(start, end),
-    ).scalar()
+    )
+    if station_ids:
+        sold_query = sold_query.filter(FuelTransaction.station_id.in_(station_ids))
+    total_sold = sold_query.scalar()
 
     # Sold by fuel type
     fuel_sold = {}
     for ft in ["magna", "premium", "diesel"]:
-        val = db.session.query(
+        fq = db.session.query(
             db.func.coalesce(db.func.sum(FuelTransaction.liters), 0)
         ).filter(
             FuelTransaction.transaction_type == "sold",
             FuelTransaction.fuel_type == ft,
             FuelTransaction.timestamp.between(start, end),
-        ).scalar()
-        fuel_sold[ft] = float(val)
+        )
+        if station_ids:
+            fq = fq.filter(FuelTransaction.station_id.in_(station_ids))
+        fuel_sold[ft] = float(fq.scalar())
 
     # Yesterday comparison
     ystart = datetime.combine(today - timedelta(days=1), datetime.min.time())
     yend = datetime.combine(today - timedelta(days=1), datetime.max.time())
-    yesterday_sold = db.session.query(
+    yq = db.session.query(
         db.func.coalesce(db.func.sum(FuelTransaction.liters), 0)
     ).filter(
         FuelTransaction.transaction_type == "sold",
         FuelTransaction.timestamp.between(ystart, yend),
-    ).scalar()
+    )
+    if station_ids:
+        yq = yq.filter(FuelTransaction.station_id.in_(station_ids))
+    yesterday_sold = yq.scalar()
 
     change_pct = ((float(total_sold) - float(yesterday_sold)) / float(yesterday_sold) * 100) if yesterday_sold else 0
 
-    # Station counts by alert level
-    active_stations = Station.query.filter_by(active=True).count()
+    # Station counts by alert level (scoped)
+    stations = Station.query.filter(Station.id.in_(station_ids)).all() if station_ids else []
     critical_count = 0
     low_count = 0
     normal_count = 0
-    for station in Station.query.filter_by(active=True).all():
+    for station in stations:
         worst = 100
         for ft in ["magna", "premium", "diesel"]:
             snap = InventorySnapshot.query.filter_by(
@@ -106,26 +399,31 @@ def api_dashboard():
     pending_orders = Prediction.query.filter(
         Prediction.fulfilled == False,
         Prediction.recommended_date >= datetime.combine(today, datetime.min.time()),
-    ).count()
+    )
+    if station_ids:
+        pending_orders = pending_orders.filter(Prediction.station_id.in_(station_ids))
+    pending_count = pending_orders.count()
 
     return jsonify({
         "total_sold_today": float(total_sold),
         "fuel_sold": fuel_sold,
         "change_pct": round(change_pct, 1),
-        "active_stations": active_stations,
+        "active_stations": len(stations),
         "critical_stations": critical_count,
         "low_stations": low_count,
         "normal_stations": normal_count,
         "reports_today": today_reports,
-        "pending_orders": pending_orders,
+        "pending_orders": pending_count,
         "date": today.isoformat(),
     })
 
 
 @app.route("/api/dashboard/sales-chart")
+@require_auth
 def api_sales_chart():
     days = request.args.get("days", 7, type=int)
     today = date.today()
+    station_ids = get_accessible_station_ids()
     result = []
     for d in range(days - 1, -1, -1):
         target = today - timedelta(days=d)
@@ -133,26 +431,31 @@ def api_sales_chart():
         end = datetime.combine(target, datetime.max.time())
         day_data = {"date": target.isoformat(), "label": target.strftime("%d %b")}
         for ft in ["magna", "premium", "diesel"]:
-            val = db.session.query(
+            fq = db.session.query(
                 db.func.coalesce(db.func.sum(FuelTransaction.liters), 0)
             ).filter(
                 FuelTransaction.transaction_type == "sold",
                 FuelTransaction.fuel_type == ft,
                 FuelTransaction.timestamp.between(start, end),
-            ).scalar()
-            day_data[ft] = float(val)
+            )
+            if station_ids:
+                fq = fq.filter(FuelTransaction.station_id.in_(station_ids))
+            day_data[ft] = float(fq.scalar())
         day_data["total"] = day_data["magna"] + day_data["premium"] + day_data["diesel"]
         result.append(day_data)
     return jsonify(result)
 
 
 # ------------------------------------------------------------------ #
-#  API: Stations
+#  API: Stations (scope-filtered)
 # ------------------------------------------------------------------ #
 @app.route("/api/stations")
+@require_auth
 def api_stations():
     today = date.today()
-    stations = Station.query.filter_by(active=True).order_by(Station.code).all()
+    station_ids = get_accessible_station_ids()
+    stations = Station.query.filter(Station.id.in_(station_ids)).order_by(Station.code).all() if station_ids else []
+
     result = []
     for s in stations:
         levels = {}
@@ -167,7 +470,6 @@ def api_stations():
             levels[ft] = {"liters": round(liters, 0), "capacity": cap, "pct": round(pct, 1)}
             worst_pct = min(worst_pct, pct)
 
-        # Today sales
         start = datetime.combine(today, datetime.min.time())
         end = datetime.combine(today, datetime.max.time())
         today_sold = db.session.query(
@@ -178,7 +480,6 @@ def api_stations():
             FuelTransaction.timestamp.between(start, end),
         ).scalar()
 
-        # SAT compliance check
         has_report = Report.query.filter_by(report_date=today).filter(
             (Report.station_id == s.id) | (Report.station_id.is_(None))
         ).first()
@@ -187,6 +488,7 @@ def api_stations():
         result.append({
             "id": s.id, "code": s.code, "name": s.name,
             "address": s.address, "city": s.city,
+            "razon_social_id": s.razon_social_id,
             "levels": levels,
             "today_sold": float(today_sold),
             "sat_compliant": has_report is not None,
@@ -196,7 +498,12 @@ def api_stations():
 
 
 @app.route("/api/stations/<int:station_id>")
+@require_auth
 def api_station_detail(station_id):
+    station_ids = get_accessible_station_ids()
+    if station_id not in station_ids:
+        return jsonify({"error": "No tienes acceso a esta estacion."}), 403
+
     station = Station.query.get_or_404(station_id)
     today = date.today()
     levels = {}
@@ -211,6 +518,7 @@ def api_station_detail(station_id):
     return jsonify({
         "id": station.id, "code": station.code, "name": station.name,
         "address": station.address, "city": station.city,
+        "razon_social_id": station.razon_social_id,
         "levels": levels,
         "magna_capacity": station.magna_capacity,
         "premium_capacity": station.premium_capacity,
@@ -219,13 +527,15 @@ def api_station_detail(station_id):
 
 
 # ------------------------------------------------------------------ #
-#  API: Inventory
+#  API: Inventory (scope-filtered)
 # ------------------------------------------------------------------ #
 @app.route("/api/inventory/summary")
+@require_auth
 def api_inventory_summary():
     today = date.today()
+    station_ids = get_accessible_station_ids()
     summary = {"magna": 0, "premium": 0, "diesel": 0, "total_capacity": {"magna": 0, "premium": 0, "diesel": 0}}
-    stations = Station.query.filter_by(active=True).all()
+    stations = Station.query.filter(Station.id.in_(station_ids)).all() if station_ids else []
     for s in stations:
         for ft in ["magna", "premium", "diesel"]:
             snap = InventorySnapshot.query.filter_by(
@@ -239,48 +549,66 @@ def api_inventory_summary():
 
 
 @app.route("/api/inventory/history")
+@require_auth
 def api_inventory_history():
     days = request.args.get("days", 7, type=int)
     today = date.today()
+    station_ids = get_accessible_station_ids()
     result = []
     for d in range(days - 1, -1, -1):
         target = today - timedelta(days=d)
         start = datetime.combine(target, datetime.min.time())
         end = datetime.combine(target, datetime.max.time())
-        received = float(db.session.query(
+
+        rq = db.session.query(
             db.func.coalesce(db.func.sum(FuelTransaction.liters), 0)
         ).filter(
             FuelTransaction.transaction_type == "received",
             FuelTransaction.timestamp.between(start, end),
-        ).scalar())
-        sold = float(db.session.query(
+        )
+        sq = db.session.query(
             db.func.coalesce(db.func.sum(FuelTransaction.liters), 0)
         ).filter(
             FuelTransaction.transaction_type == "sold",
             FuelTransaction.timestamp.between(start, end),
-        ).scalar())
-        total_on_hand = float(db.session.query(
+        )
+        ohq = db.session.query(
             db.func.coalesce(db.func.sum(InventorySnapshot.liters_on_hand), 0)
-        ).filter(InventorySnapshot.snapshot_date == target).scalar())
+        ).filter(InventorySnapshot.snapshot_date == target)
+
+        if station_ids:
+            rq = rq.filter(FuelTransaction.station_id.in_(station_ids))
+            sq = sq.filter(FuelTransaction.station_id.in_(station_ids))
+            ohq = ohq.filter(InventorySnapshot.station_id.in_(station_ids))
+
+        received = float(rq.scalar())
+        sold = float(sq.scalar())
+        on_hand = float(ohq.scalar())
 
         result.append({
             "date": target.isoformat(),
             "label": target.strftime("%d %b"),
             "received": round(received, 0),
             "sold": round(sold, 0),
-            "on_hand": round(total_on_hand, 0),
+            "on_hand": round(on_hand, 0),
             "net": round(received - sold, 0),
         })
     return jsonify(result)
 
 
 @app.route("/api/inventory/record", methods=["POST"])
+@require_auth
 def api_record_transaction():
     data = request.json
     required = ["station_id", "fuel_type", "transaction_type", "liters"]
     for field in required:
         if field not in data:
             return jsonify({"error": f"Missing field: {field}"}), 400
+
+    # Check access
+    station_ids = get_accessible_station_ids()
+    if data["station_id"] not in station_ids:
+        return jsonify({"error": "No tienes acceso a esta estacion."}), 403
 
     station = Station.query.get(data["station_id"])
     if not station:
@@ -294,10 +622,11 @@ def api_record_transaction():
         price_per_liter=data.get("price_per_liter"),
         timestamp=datetime.utcnow(),
         notes=data.get("notes"),
+        recorded_by_id=g.current_user.id if g.current_user else None,
+        source=data.get("source", "web"),
     )
     db.session.add(tx)
 
-    # Update today's inventory snapshot
     today = date.today()
     snap = InventorySnapshot.query.filter_by(
         station_id=data["station_id"],
@@ -327,9 +656,10 @@ def api_record_transaction():
 
 
 # ------------------------------------------------------------------ #
-#  API: Reports
+#  API: Reports (scope-filtered)
 # ------------------------------------------------------------------ #
 @app.route("/api/reports/generate", methods=["POST"])
+@require_auth
 def api_generate_report():
     data = request.json or {}
     report_type = data.get("type", "sat_volumetric")
@@ -351,12 +681,14 @@ def api_generate_report():
 
 
 @app.route("/api/reports/history")
+@require_auth
 def api_report_history():
     limit = request.args.get("limit", 50, type=int)
     return jsonify(reports.get_report_history(limit))
 
 
 @app.route("/api/reports/download/<int:report_id>")
+@require_auth
 def api_download_report(report_id):
     report = Report.query.get_or_404(report_id)
     if not report.file_path or not os.path.exists(report.file_path):
@@ -365,6 +697,7 @@ def api_download_report(report_id):
 
 
 @app.route("/api/reports/send/<int:report_id>", methods=["POST"])
+@require_auth
 def api_send_report(report_id):
     success = reports.mark_report_sent(report_id)
     if success:
@@ -373,6 +706,7 @@ def api_send_report(report_id):
 
 
 @app.route("/api/reports/generate-all", methods=["POST"])
+@require_auth
 def api_generate_all_reports():
     target_date_str = (request.json or {}).get("date")
     target_date = date.fromisoformat(target_date_str) if target_date_str else date.today()
@@ -391,9 +725,10 @@ def api_generate_all_reports():
 
 
 # ------------------------------------------------------------------ #
-#  API: Predictions
+#  API: Predictions (scope-filtered)
 # ------------------------------------------------------------------ #
 @app.route("/api/predictions/recommendations")
+@require_auth
 def api_recommendations():
     hours = request.args.get("hours", 72, type=int)
     recs = predictions.generate_order_recommendations(horizon_hours=hours)
@@ -401,6 +736,7 @@ def api_recommendations():
 
 
 @app.route("/api/predictions/forecast")
+@require_auth
 def api_forecast():
     station_id = request.args.get("station_id", type=int)
     days = request.args.get("days", 7, type=int)
@@ -409,7 +745,12 @@ def api_forecast():
 
 
 @app.route("/api/predictions/station/<int:station_id>/<fuel_type>")
+@require_auth
 def api_station_prediction(station_id, fuel_type):
+    station_ids = get_accessible_station_ids()
+    if station_id not in station_ids:
+        return jsonify({"error": "No tienes acceso a esta estacion."}), 403
+
     demand = predictions.predict_demand(station_id, fuel_type)
     inv = predictions.get_current_inventory(station_id, fuel_type)
     if not demand:
@@ -429,15 +770,17 @@ def api_station_prediction(station_id, fuel_type):
 
 
 # ------------------------------------------------------------------ #
-#  API: Alerts
+#  API: Alerts (scope-filtered)
 # ------------------------------------------------------------------ #
 @app.route("/api/alerts")
+@require_auth
 def api_alerts():
     today = date.today()
+    station_ids = get_accessible_station_ids()
     alerts = []
 
-    # Critical inventory alerts
-    for station in Station.query.filter_by(active=True).all():
+    stations = Station.query.filter(Station.id.in_(station_ids)).all() if station_ids else []
+    for station in stations:
         for ft in ["magna", "premium", "diesel"]:
             snap = InventorySnapshot.query.filter_by(
                 station_id=station.id, fuel_type=ft, snapshot_date=today,
@@ -449,6 +792,7 @@ def api_alerts():
                     alerts.append({
                         "type": "critical",
                         "station": station.name,
+                        "station_id": station.id,
                         "message": f"{ft.capitalize()} al {pct:.0f}% ({snap.liters_on_hand:.0f}L). Pedido urgente recomendado.",
                         "time": "Ahora",
                     })
@@ -456,11 +800,11 @@ def api_alerts():
                     alerts.append({
                         "type": "warning",
                         "station": station.name,
+                        "station_id": station.id,
                         "message": f"{ft.capitalize()} por debajo del 35% ({pct:.0f}%). Pedido recomendado.",
                         "time": "Reciente",
                     })
 
-    # Recent report alerts
     recent_reports = Report.query.filter_by(report_date=today).order_by(Report.created_at.desc()).limit(3).all()
     for r in recent_reports:
         type_labels = {
@@ -476,7 +820,6 @@ def api_alerts():
             "time": r.created_at.strftime("%H:%M") if r.created_at else "",
         })
 
-    # Sort: critical first
     order = {"critical": 0, "warning": 1, "info": 2}
     alerts.sort(key=lambda a: order.get(a["type"], 3))
     return jsonify(alerts[:15])
@@ -486,8 +829,8 @@ def api_alerts():
 #  API: SAT XML Generator (AI-powered)
 # ------------------------------------------------------------------ #
 @app.route("/api/sat-xml/extract", methods=["POST"])
+@require_auth
 def api_extract_from_file():
-    """Extract operational data from an uploaded document using Claude vision/text."""
     if 'file' not in request.files:
         return jsonify({"error": "No se envio ningun archivo."}), 400
 
@@ -495,13 +838,11 @@ def api_extract_from_file():
     if not file.filename:
         return jsonify({"error": "Archivo sin nombre."}), 400
 
-    # Validate extension
     allowed_ext = {'pdf', 'xlsx', 'xls', 'docx', 'jpg', 'jpeg', 'png', 'webp'}
     ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else ''
     if ext not in allowed_ext:
         return jsonify({"error": f"Tipo de archivo no soportado: .{ext}. Soportados: PDF, XLSX, DOCX, JPG, PNG"}), 400
 
-    # Read file bytes (max 10MB)
     file_bytes = file.read()
     if len(file_bytes) > 10 * 1024 * 1024:
         return jsonify({"error": "Archivo demasiado grande. Maximo 10MB."}), 400
@@ -515,8 +856,8 @@ def api_extract_from_file():
 
 
 @app.route("/api/sat-xml/generate", methods=["POST"])
+@require_auth
 def api_generate_sat_xml():
-    """Generate SAT-compliant XML from raw station data using Claude."""
     data = request.json or {}
 
     station_config = {
@@ -534,7 +875,7 @@ def api_generate_sat_xml():
 
     raw_data = data.get("raw_data", "")
     if not raw_data.strip():
-        return jsonify({"error": "raw_data is required. Provide tank readings, receptions, and sales data."}), 400
+        return jsonify({"error": "raw_data is required."}), 400
 
     report_date_str = data.get("date")
     report_date = date.fromisoformat(report_date_str) if report_date_str else date.today()
@@ -544,14 +885,14 @@ def api_generate_sat_xml():
     if result.get("error"):
         return jsonify(result), 500 if "API error" in result["error"] else 400
 
-    # Save to reports DB
     report = Report(
         report_type="sat_xml_volumetric",
         report_date=report_date,
         status="generated",
         file_path=result["zip_path"],
         created_at=datetime.utcnow(),
-        details=f"XML SAT generado con IA. {result['validation'].get('product_count', 0)} productos. Archivo: {result['zip_filename']}",
+        details=f"XML SAT generado con IA. {result['validation'].get('product_count', 0)} productos.",
+        generated_by_id=g.current_user.id if g.current_user else None,
     )
     db.session.add(report)
     db.session.commit()
@@ -567,8 +908,8 @@ def api_generate_sat_xml():
 
 
 @app.route("/api/sat-xml/generate-from-db", methods=["POST"])
+@require_auth
 def api_generate_sat_xml_from_db():
-    """Generate SAT XML using existing database data + AI."""
     data = request.json or {}
     report_date_str = data.get("date")
     report_date = date.fromisoformat(report_date_str) if report_date_str else date.today()
@@ -584,7 +925,8 @@ def api_generate_sat_xml_from_db():
         status="generated",
         file_path=result["zip_path"],
         created_at=datetime.utcnow(),
-        details=f"XML SAT desde BD. {result['validation'].get('product_count', 0)} productos. {result['zip_filename']}",
+        details=f"XML SAT desde BD. {result['validation'].get('product_count', 0)} productos.",
+        generated_by_id=g.current_user.id if g.current_user else None,
     )
     db.session.add(report)
     db.session.commit()
@@ -600,8 +942,8 @@ def api_generate_sat_xml_from_db():
 
 
 @app.route("/api/sat-xml/download/<int:report_id>")
+@require_auth
 def api_download_sat_xml(report_id):
-    """Download a generated SAT XML zip file."""
     report = Report.query.get_or_404(report_id)
     if not report.file_path or not os.path.exists(report.file_path):
         abort(404)
@@ -610,6 +952,56 @@ def api_download_sat_xml(report_id):
         as_attachment=True,
         download_name=os.path.basename(report.file_path),
     )
+
+
+# ------------------------------------------------------------------ #
+#  API: OpenClaw Webhook (receives push events)
+# ------------------------------------------------------------------ #
+@app.route("/api/webhook/openclaw", methods=["POST"])
+@require_auth
+def api_openclaw_webhook():
+    """Receive commands from OpenClaw (WhatsApp bot).
+    OpenClaw authenticates with its service token.
+    """
+    data = request.json or {}
+    action = data.get("action")
+
+    if action == "record_transaction":
+        # Forward to inventory recording
+        return api_record_transaction()
+
+    if action == "get_summary":
+        # Return a text-friendly summary for WhatsApp
+        station_ids = get_accessible_station_ids()
+        today = date.today()
+        start = datetime.combine(today, datetime.min.time())
+        end = datetime.combine(today, datetime.max.time())
+
+        sq = db.session.query(
+            db.func.coalesce(db.func.sum(FuelTransaction.liters), 0)
+        ).filter(
+            FuelTransaction.transaction_type == "sold",
+            FuelTransaction.timestamp.between(start, end),
+        )
+        if station_ids:
+            sq = sq.filter(FuelTransaction.station_id.in_(station_ids))
+        total = float(sq.scalar())
+
+        return jsonify({
+            "text": f"Resumen del dia ({today.isoformat()}):\nLitros vendidos: {total:,.0f}\nEstaciones activas: {len(station_ids)}",
+            "total_sold": total,
+            "station_count": len(station_ids),
+        })
+
+    return jsonify({"error": f"Unknown action: {action}"}), 400
+
+
+# ------------------------------------------------------------------ #
+#  Health check (public)
+# ------------------------------------------------------------------ #
+@app.route("/api/health")
+def api_health():
+    return jsonify({"status": "ok", "version": "2.0.0", "timestamp": datetime.utcnow().isoformat()})
 
 
 # ------------------------------------------------------------------ #
@@ -623,7 +1015,6 @@ def init_db():
             db.create_all()
             from seed_data import seed_database
             seed_database()
-            # Generate initial reports
             print("Generating initial reports...")
             reports.generate_sat_volumetric()
             reports.generate_cne_weekly()
@@ -631,7 +1022,9 @@ def init_db():
             reports.generate_price_report()
             print("Database initialized with demo data and reports.")
         else:
-            print("Database already exists.")
+            # Run migrations for new tables if they don't exist
+            db.create_all()
+            print("Database ready. New tables created if needed.")
 
 
 init_db()

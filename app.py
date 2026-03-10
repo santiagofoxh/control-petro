@@ -28,6 +28,10 @@ app.config["JSON_SORT_KEYS"] = False
 
 db.init_app(app)
 
+# Register data-ingestion blueprint (OpenClaw / WhatsApp endpoints)
+from api_ingestion import ingest_bp
+app.register_blueprint(ingest_bp)
+
 
 # ------------------------------------------------------------------ #
 #  Serve frontend (public â no auth)

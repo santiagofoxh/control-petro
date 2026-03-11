@@ -1,48 +1,96 @@
 """
-ControlPetro â Data Ingestion API (Flask Blueprint)
+ ControlPetro - Data Ingestion API (Flask Blueprint)
 
 Endpoints for OpenClaw / WhatsApp bot to submit operational data:
-  POST /api/ingest/transactions     â fuel received / sold
-  POST /api/ingest/inventory        â tank level snapshot
-  POST /api/ingest/check-duplicate  â duplicate detection before insert
-  GET  /api/ingest/identify-station â fuzzy station lookup
-  GET  /api/ingest/stations-list    â all stations summary (for OpenClaw)
-  GET  /api/ingest/summary          â daily summary for a station
+  POST /api/ingest/transactions    - fuel received / sold
+  POST /api/ingest/inventory       - tank level snapshot
+  POST /api/ingest/check-duplicate - duplicate detection before insert
+  GET  /api/ingest/identify-station - fuzzy station lookup
+  GET  /api/ingest/stations-list   - all stations summary (for OpenClaw)
+  GET  /api/ingest/summary         - daily summary for a station
+  POST /api/ingest/link-phone      - link WhatsApp phone to user profile
 
 All endpoints require the OPENCLAW_SERVICE_TOKEN as Bearer token.
 """
 
 from datetime import datetime, date, timedelta
 from flask import Blueprint, request, jsonify, g
-from database import db, Station, FuelTransaction, InventorySnapshot, Report
+from database import db, Station, FuelTransaction, InventorySnapshot, Report, User
 from auth import require_auth
 
 ingest_bp = Blueprint("ingest", __name__, url_prefix="/api/ingest")
 
 
 # ------------------------------------------------------------------ #
-#  POST /api/ingest/transactions
-#  Submit one or more fuel transactions (received or sold)
+# Helper: auto-match WhatsApp phone to user
 # ------------------------------------------------------------------ #
+
+def resolve_user_from_phone(phone_number):
+    """Try to find a user by their WhatsApp phone number.
+    Returns the User object if found, None otherwise.
+    """
+    if not phone_number:
+        return None
+    # Normalize: strip spaces, ensure + prefix
+    phone = phone_number.strip().replace(" ", "").replace("-", "")
+    if not phone.startswith("+"):
+        phone = "+" + phone
+
+    user = User.query.filter_by(phone=phone, active=True).first()
+    if user:
+        # Auto-verify WhatsApp if not already
+        if not user.whatsapp_verified:
+            user.whatsapp_verified = True
+            db.session.commit()
+        return user
+    return None
+
+
+def get_recording_user():
+    """Determine which user is recording this data.
+    Priority: 1) X-On-Behalf-Of header, 2) X-WhatsApp-Phone header, 3) g.current_user
+    """
+    # Check X-On-Behalf-Of (set by OpenClaw when it knows the user)
+    behalf_user_id = request.headers.get("X-On-Behalf-Of")
+    if behalf_user_id:
+        user = User.query.get(int(behalf_user_id))
+        if user:
+            return user
+
+    # Check X-WhatsApp-Phone (phone number from incoming WhatsApp message)
+    wa_phone = request.headers.get("X-WhatsApp-Phone")
+    if wa_phone:
+        user = resolve_user_from_phone(wa_phone)
+        if user:
+            return user
+
+    # Fallback to authenticated user
+    return getattr(g, "current_user", None)
+
+
+# ------------------------------------------------------------------ #
+# POST /api/ingest/transactions
+# Submit one or more fuel transactions (received or sold)
+# ------------------------------------------------------------------ #
+
 @ingest_bp.route("/transactions", methods=["POST"])
 @require_auth
 def submit_transactions():
     """
     Body (JSON):
-      {
-        "station_id": 3,
-        "transactions": [
-          {
-            "fuel_type": "magna",
-            "transaction_type": "received",
-            "liters": 15000,
-            "price_per_liter": 18.85,
-            "timestamp": "2026-03-10T08:30:00",
-            "notes": "Pipa #42 proveedor Pemex"
-          },
-          ...
-        ]
-      }
+    {
+      "station_id": 3,
+      "transactions": [
+        {
+          "fuel_type": "magna",
+          "transaction_type": "received",
+          "liters": 15000,
+          "price_per_liter": 18.85,
+          "timestamp": "2026-03-10T08:30:00",
+          "notes": "Pipa #42 proveedor Pemex"
+        }, ...
+      ]
+    }
     """
     data = request.get_json(silent=True)
     if not data:
@@ -59,6 +107,9 @@ def submit_transactions():
     station = Station.query.get(station_id)
     if not station:
         return jsonify({"error": f"Station {station_id} not found"}), 404
+
+    # Resolve which user is recording
+    recording_user = get_recording_user()
 
     created = []
     for t in txns:
@@ -88,7 +139,7 @@ def submit_transactions():
             price_per_liter=t.get("price_per_liter"),
             timestamp=ts,
             notes=t.get("notes", ""),
-            recorded_by_id=getattr(g, "current_user", None) and g.current_user.id,
+            recorded_by_id=recording_user.id if recording_user else None,
             source="whatsapp" if request.headers.get("X-Source") == "whatsapp" else "api",
         )
         db.session.add(txn)
@@ -96,6 +147,7 @@ def submit_transactions():
             "fuel_type": fuel_type,
             "transaction_type": txn_type,
             "liters": liters,
+            "recorded_by": recording_user.username if recording_user else None,
         })
 
     db.session.commit()
@@ -108,23 +160,24 @@ def submit_transactions():
 
 
 # ------------------------------------------------------------------ #
-#  POST /api/ingest/inventory
-#  Submit a tank-level inventory snapshot
+# POST /api/ingest/inventory
+# Submit a tank-level inventory snapshot
 # ------------------------------------------------------------------ #
+
 @ingest_bp.route("/inventory", methods=["POST"])
 @require_auth
 def submit_inventory():
     """
     Body (JSON):
-      {
-        "station_id": 3,
-        "readings": [
-          {"fuel_type": "magna",   "liters_on_hand": 28500},
-          {"fuel_type": "premium", "liters_on_hand": 12300},
-          {"fuel_type": "diesel",  "liters_on_hand": 31000}
-        ],
-        "snapshot_date": "2026-03-10"
-      }
+    {
+      "station_id": 3,
+      "readings": [
+        {"fuel_type": "magna", "liters_on_hand": 28500},
+        {"fuel_type": "premium", "liters_on_hand": 12300},
+        {"fuel_type": "diesel", "liters_on_hand": 31000}
+      ],
+      "snapshot_date": "2026-03-10"
+    }
     """
     data = request.get_json(silent=True)
     if not data:
@@ -154,6 +207,9 @@ def submit_inventory():
         "diesel": station.diesel_capacity,
     }
 
+    # Resolve which user is recording
+    recording_user = get_recording_user()
+
     saved = []
     for r in readings:
         fuel_type = (r.get("fuel_type") or "").lower().strip()
@@ -172,6 +228,8 @@ def submit_inventory():
         if existing:
             existing.liters_on_hand = liters
             existing.capacity = capacities[fuel_type]
+            existing.updated_by_id = recording_user.id if recording_user else None
+            existing.updated_at = datetime.utcnow()
             saved.append({"fuel_type": fuel_type, "liters": liters, "action": "updated"})
         else:
             snap = InventorySnapshot(
@@ -180,6 +238,7 @@ def submit_inventory():
                 liters_on_hand=liters,
                 capacity=capacities[fuel_type],
                 snapshot_date=snap_date,
+                recorded_by_id=recording_user.id if recording_user else None,
             )
             db.session.add(snap)
             saved.append({"fuel_type": fuel_type, "liters": liters, "action": "created"})
@@ -190,28 +249,28 @@ def submit_inventory():
         "station": station.name,
         "snapshot_date": snap_date.isoformat(),
         "readings": saved,
+        "recorded_by": recording_user.username if recording_user else None,
     }), 201
 
 
 # ------------------------------------------------------------------ #
-#  POST /api/ingest/check-duplicate
-#  Check if a similar transaction already exists (before submitting)
+# POST /api/ingest/check-duplicate
+# Check if a similar transaction already exists (before submitting)
 # ------------------------------------------------------------------ #
+
 @ingest_bp.route("/check-duplicate", methods=["POST"])
 @require_auth
 def check_duplicate():
     """
     Body (JSON):
-      {
-        "station_id": 3,
-        "fuel_type": "magna",
-        "transaction_type": "received",
-        "liters": 15000,
-        "date": "2026-03-10"
-      }
-
-    Returns:
-      { "is_duplicate": true/false, "matching_transactions": [...] }
+    {
+      "station_id": 3,
+      "fuel_type": "magna",
+      "transaction_type": "received",
+      "liters": 15000,
+      "date": "2026-03-10"
+    }
+    Returns: { "is_duplicate": true/false, "matching_transactions": [...] }
     """
     data = request.get_json(silent=True)
     if not data:
@@ -259,6 +318,7 @@ def check_duplicate():
                 "timestamp": m.timestamp.isoformat(),
                 "source": m.source,
                 "notes": m.notes,
+                "recorded_by": m.recorded_by.username if m.recorded_by else None,
                 "similarity": round(similarity * 100, 1),
             })
 
@@ -277,9 +337,10 @@ def check_duplicate():
 
 
 # ------------------------------------------------------------------ #
-#  GET /api/ingest/identify-station?q=<name or code>
-#  Fuzzy station lookup for OpenClaw to identify which station
+# GET /api/ingest/identify-station?q=<name or code>
+# Fuzzy station lookup for OpenClaw to identify which station
 # ------------------------------------------------------------------ #
+
 @ingest_bp.route("/identify-station", methods=["GET"])
 @require_auth
 def identify_station():
@@ -313,6 +374,7 @@ def identify_station():
             })
 
     results.sort(key=lambda x: x["match_score"], reverse=True)
+
     return jsonify({
         "query": q,
         "results": results[:5],
@@ -321,9 +383,10 @@ def identify_station():
 
 
 # ------------------------------------------------------------------ #
-#  GET /api/ingest/stations-list
-#  Full station list with current inventory (for OpenClaw context)
+# GET /api/ingest/stations-list
+# Full station list with current inventory (for OpenClaw context)
 # ------------------------------------------------------------------ #
+
 @ingest_bp.route("/stations-list", methods=["GET"])
 @require_auth
 def stations_list():
@@ -358,9 +421,10 @@ def stations_list():
 
 
 # ------------------------------------------------------------------ #
-#  GET /api/ingest/summary?station_id=3&date=2026-03-10
-#  Daily summary for a station (helps OpenClaw confirm data)
+# GET /api/ingest/summary?station_id=3&date=2026-03-10
+# Daily summary for a station (helps OpenClaw confirm data)
 # ------------------------------------------------------------------ #
+
 @ingest_bp.route("/summary", methods=["GET"])
 @require_auth
 def daily_summary():
@@ -418,4 +482,59 @@ def daily_summary():
         "fuel_summary": fuel_summary,
         "inventory": inventory,
         "total_transactions": len(txns),
+    })
+
+
+# ------------------------------------------------------------------ #
+# POST /api/ingest/link-phone
+# Admin: manually link a WhatsApp phone number to a user
+# ------------------------------------------------------------------ #
+
+@ingest_bp.route("/link-phone", methods=["POST"])
+@require_auth
+def link_phone():
+    """
+    Body (JSON):
+    {
+      "user_id": 5,
+      "phone": "+526561234567"
+    }
+    Links a WhatsApp phone number to a user profile for auto-tagging.
+    """
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "JSON body required"}), 400
+
+    user_id = data.get("user_id")
+    phone = data.get("phone", "").strip()
+
+    if not user_id or not phone:
+        return jsonify({"error": "user_id and phone required"}), 400
+
+    # Normalize phone
+    phone = phone.replace(" ", "").replace("-", "")
+    if not phone.startswith("+"):
+        phone = "+" + phone
+
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": f"User {user_id} not found"}), 404
+
+    # Check if phone is already assigned to another user
+    existing = User.query.filter_by(phone=phone).first()
+    if existing and existing.id != user_id:
+        return jsonify({
+            "error": f"Este numero ya esta asignado a {existing.name} ({existing.username})",
+        }), 409
+
+    user.phone = phone
+    user.whatsapp_verified = True
+    db.session.commit()
+
+    return jsonify({
+        "ok": True,
+        "user_id": user.id,
+        "username": user.username,
+        "phone": phone,
+        "message": f"Telefono vinculado a {user.name}. Los datos enviados desde este numero se etiquetaran automaticamente.",
     })

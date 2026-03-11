@@ -3,849 +3,1075 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ControlPetro - Reportes SAT y CNE con IA para Gasolineras</title>
-<meta name="description" content="Plataforma con IA para gasolineras mexicanas. Genera reportes SAT volumetricos y CNE en minutos, no en dias. Centraliza tus 8 estaciones en un solo dashboard.">
+<title>ControlPetro — Infraestructura inteligente para gasolineras</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-/* ===== RESET & BASE ===== */
-*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-:root{
-  --navy:#0a1628;--navy2:#0f1d32;--navy3:#162544;
-  --teal:#0d9488;--teal-l:#14b8a6;--teal-g:#5eead4;
-  --orange:#f97316;--orange-l:#fb923c;
-  --pink:#ec4899;--pink-l:#f9a8d4;
-  --green:#22c55e;--red:#ef4444;--yellow:#eab308;
-  --w:#ffffff;--g50:#f8fafc;--g100:#f1f5f9;--g200:#e2e8f0;
-  --g400:#94a3b8;--g500:#64748b;--g600:#475569;--g800:#1e293b;
-}
-html{scroll-behavior:smooth}
-body{
-  font-family:'Inter',system-ui,-apple-system,sans-serif;
-  background:var(--navy);color:var(--w);
-  line-height:1.6;overflow-x:hidden;
-}
-a{color:inherit;text-decoration:none}
-img,svg{display:block;max-width:100%}
+  :root {
+    --navy: #0A1628;
+    --navy-light: #1a2a44;
+    --orange: #F97316;
+    --orange-light: #FDBA74;
+    --teal: #0D9488;
+    --teal-light: #5EEAD4;
+    --pink: #EC4899;
+    --pink-light: #F9A8D4;
+    --gray-50: #F9FAFB;
+    --gray-100: #F3F4F6;
+    --gray-200: #E5E7EB;
+    --gray-300: #D1D5DB;
+    --gray-500: #6B7280;
+    --gray-600: #4B5563;
+    --gray-700: #374151;
+    --gray-900: #111827;
+    --white: #FFFFFF;
+  }
 
-/* ===== CONTAINER ===== */
-.container{max-width:1200px;margin:0 auto;padding:0 24px}
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
 
-/* ===== NAVBAR ===== */
-.navbar{
-  position:fixed;top:0;left:0;right:0;z-index:100;
-  background:rgba(10,22,40,0.85);backdrop-filter:blur(20px);
-  border-bottom:1px solid rgba(255,255,255,0.04);
-  transition:background 0.3s;
-}
-.nav-inner{
-  display:flex;align-items:center;justify-content:space-between;
-  height:72px;max-width:1200px;margin:0 auto;padding:0 24px;
-}
-.nav-logo{display:flex;align-items:center;gap:10px;font-size:22px;font-weight:800}
-.nav-logo .accent{color:var(--teal)}
-.nav-logo svg{flex-shrink:0}
-.nav-links{display:flex;align-items:center;gap:32px}
-.nav-links a{font-size:14px;font-weight:500;color:var(--g400);transition:color 0.2s}
-.nav-links a:hover{color:var(--w)}
-.nav-cta{
-  background:var(--teal);color:var(--w);
-  padding:10px 24px;border-radius:10px;font-weight:600;font-size:14px;
-  transition:all 0.2s;border:none;cursor:pointer;
-}
-.nav-cta:hover{background:var(--teal-l);transform:translateY(-1px)}
-.nav-mobile{display:none;background:none;border:none;color:var(--w);cursor:pointer;padding:8px}
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: var(--gray-900);
+    background: var(--white);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
 
-/* ===== HERO ===== */
-.hero{
-  padding:140px 0 100px;position:relative;overflow:hidden;
-  min-height:90vh;display:flex;align-items:center;
-}
-.hero::before{
-  content:'';position:absolute;top:-200px;right:-200px;
-  width:800px;height:800px;border-radius:50%;
-  background:radial-gradient(circle,rgba(13,148,136,0.08) 0%,transparent 70%);
-}
-.hero::after{
-  content:'';position:absolute;bottom:-100px;left:-100px;
-  width:600px;height:600px;border-radius:50%;
-  background:radial-gradient(circle,rgba(249,115,22,0.05) 0%,transparent 70%);
-}
-.hero-grid{
-  display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:center;
-  position:relative;z-index:2;
-}
-.hero-badge{
-  display:inline-flex;align-items:center;gap:8px;
-  background:rgba(13,148,136,0.1);border:1px solid rgba(13,148,136,0.2);
-  border-radius:40px;padding:8px 20px;font-size:13px;font-weight:600;
-  color:var(--teal-g);margin-bottom:24px;
-}
-.hero-badge .dot{width:8px;height:8px;border-radius:50%;background:var(--teal);animation:pulse 2s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
-.hero h1{font-size:56px;font-weight:900;line-height:1.08;letter-spacing:-1.5px;margin-bottom:20px}
-.hero h1 .teal{color:var(--teal)}
-.hero h1 .orange{color:var(--orange)}
-.hero-sub{font-size:20px;color:var(--g400);line-height:1.6;margin-bottom:36px;max-width:520px}
-.hero-buttons{display:flex;gap:16px;flex-wrap:wrap}
-.btn-primary{
-  display:inline-flex;align-items:center;gap:8px;
-  background:linear-gradient(135deg,var(--teal),#0a7c72);
-  color:var(--w);padding:16px 32px;border-radius:14px;
-  font-weight:700;font-size:16px;transition:all 0.3s;
-  box-shadow:0 8px 30px rgba(13,148,136,0.3);border:none;cursor:pointer;
-}
-.btn-primary:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(13,148,136,0.4)}
-.btn-secondary{
-  display:inline-flex;align-items:center;gap:8px;
-  background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);
-  color:var(--w);padding:16px 32px;border-radius:14px;
-  font-weight:600;font-size:16px;transition:all 0.3s;cursor:pointer;
-}
-.btn-secondary:hover{background:rgba(255,255,255,0.08);border-color:rgba(255,255,255,0.2)}
+  /* ─── NAV ─── */
+  nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: rgba(255,255,255,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--gray-200);
+    padding: 0 48px;
+    height: 72px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
 
-/* Hero visual - mock dashboard */
-.hero-visual{position:relative}
-.hero-mock{
-  background:var(--navy2);border:1px solid rgba(255,255,255,0.06);
-  border-radius:20px;padding:24px;position:relative;
-  box-shadow:0 40px 80px rgba(0,0,0,0.4);
-}
-.mock-topbar{
-  display:flex;align-items:center;gap:12px;margin-bottom:20px;
-  padding-bottom:16px;border-bottom:1px solid rgba(255,255,255,0.04);
-}
-.mock-dot{width:10px;height:10px;border-radius:50%}
-.mock-dot.r{background:#ef4444}.mock-dot.y{background:#eab308}.mock-dot.g{background:#22c55e}
-.mock-title{font-size:13px;color:var(--g400);margin-left:8px;font-weight:500}
-.mock-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
-.mock-kpi{
-  background:var(--navy3);border-radius:12px;padding:16px;
-  border:1px solid rgba(255,255,255,0.03);
-}
-.mock-kpi-label{font-size:11px;color:var(--g500);font-weight:500;text-transform:uppercase;letter-spacing:0.5px}
-.mock-kpi-val{font-size:24px;font-weight:800;margin-top:4px}
-.mock-kpi-val.teal{color:var(--teal)}.mock-kpi-val.orange{color:var(--orange)}.mock-kpi-val.green{color:var(--green)}
-.mock-chart{
-  background:var(--navy3);border-radius:12px;padding:16px;height:120px;
-  border:1px solid rgba(255,255,255,0.03);position:relative;overflow:hidden;
-}
-.mock-bars{display:flex;align-items:flex-end;gap:8px;height:80px;padding-top:8px}
-.mock-bar{flex:1;border-radius:4px 4px 0 0;min-height:8px;transition:height 0.6s}
-.mock-bar:nth-child(1){height:45%;background:var(--teal)}
-.mock-bar:nth-child(2){height:70%;background:var(--teal-l)}
-.mock-bar:nth-child(3){height:55%;background:var(--teal)}
-.mock-bar:nth-child(4){height:85%;background:var(--teal-l)}
-.mock-bar:nth-child(5){height:60%;background:var(--teal)}
-.mock-bar:nth-child(6){height:90%;background:var(--orange)}
-.mock-bar:nth-child(7){height:75%;background:var(--teal-l)}
-.mock-chart-label{font-size:11px;color:var(--g500);font-weight:500;margin-bottom:4px}
+  .nav-left {
+    display: flex;
+    align-items: center;
+    gap: 40px;
+  }
 
-/* Floating badge on hero visual */
-.hero-float{
-  position:absolute;bottom:-20px;left:-20px;
-  background:var(--navy2);border:1px solid rgba(13,148,136,0.2);
-  border-radius:16px;padding:16px 20px;display:flex;align-items:center;gap:12px;
-  box-shadow:0 20px 40px rgba(0,0,0,0.3);animation:float 4s ease-in-out infinite;
-}
-@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
-.hero-float-icon{
-  width:40px;height:40px;border-radius:10px;
-  background:linear-gradient(135deg,var(--teal),#0a7c72);
-  display:flex;align-items:center;justify-content:center;font-size:18px;
-}
-.hero-float-text{font-size:13px;font-weight:600;color:var(--teal-g)}
-.hero-float-sub{font-size:11px;color:var(--g500)}
+  .nav-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+  }
 
-/* Loti in hero */
-.hero-loti{
-  position:absolute;top:-30px;right:-10px;
-  filter:drop-shadow(0 10px 25px rgba(236,72,153,0.3));
-  animation:float 5s ease-in-out infinite;animation-delay:1s;
-}
+  .nav-logo img {
+    height: 36px;
+    width: auto;
+  }
 
-/* ===== STATS BAR ===== */
-.stats-bar{
-  padding:60px 0;position:relative;
-  border-top:1px solid rgba(255,255,255,0.03);
-  border-bottom:1px solid rgba(255,255,255,0.03);
-}
-.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:40px;text-align:center}
-.stat-num{font-size:48px;font-weight:900;background:linear-gradient(135deg,var(--teal),var(--teal-g));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.stat-label{font-size:14px;color:var(--g400);margin-top:4px;font-weight:500}
+  .nav-logo span {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--navy);
+    letter-spacing: -0.5px;
+  }
 
-/* ===== PROBLEM SECTION ===== */
-.problem{padding:120px 0;position:relative}
-.problem::before{
-  content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);
-  width:100%;max-width:800px;height:1px;
-  background:linear-gradient(90deg,transparent,rgba(249,115,22,0.3),transparent);
-}
-.section-tag{
-  font-size:13px;font-weight:700;letter-spacing:4px;text-transform:uppercase;
-  color:var(--orange);margin-bottom:16px;
-}
-.problem-headline{font-size:48px;font-weight:900;line-height:1.1;margin-bottom:20px;max-width:700px}
-.problem-headline .orange{color:var(--orange)}
-.problem-sub{font-size:18px;color:var(--g400);max-width:600px;margin-bottom:60px;line-height:1.7}
-.pain-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
-.pain-card{
-  background:var(--navy2);border:1px solid rgba(255,255,255,0.04);
-  border-radius:16px;padding:32px;transition:all 0.3s;position:relative;overflow:hidden;
-}
-.pain-card::before{
-  content:'';position:absolute;top:0;left:0;right:0;height:3px;
-  background:linear-gradient(90deg,var(--orange),var(--red));opacity:0;transition:opacity 0.3s;
-}
-.pain-card:hover{border-color:rgba(249,115,22,0.15);transform:translateY(-4px)}
-.pain-card:hover::before{opacity:1}
-.pain-icon{font-size:32px;margin-bottom:16px}
-.pain-title{font-size:18px;font-weight:700;margin-bottom:8px}
-.pain-desc{font-size:14px;color:var(--g400);line-height:1.7}
-.pain-arrow{font-size:16px;color:var(--orange);margin-top:16px;font-weight:600;display:flex;align-items:center;gap:6px}
+  .nav-links {
+    display: flex;
+    gap: 32px;
+  }
 
-/* ===== SERVICES ===== */
-.services{padding:120px 0;position:relative}
-.services::before{
-  content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-  width:600px;height:600px;border-radius:50%;
-  background:radial-gradient(circle,rgba(13,148,136,0.04) 0%,transparent 70%);
-}
-.section-header{text-align:center;margin-bottom:80px}
-.section-header h2{font-size:48px;font-weight:900;line-height:1.1;margin-bottom:16px}
-.section-header h2 .teal{color:var(--teal)}
-.section-header p{font-size:18px;color:var(--g400);max-width:600px;margin:0 auto}
-.services-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;position:relative;z-index:2}
-.service-card{
-  background:var(--navy2);border:1px solid rgba(255,255,255,0.04);
-  border-radius:20px;padding:40px 32px;transition:all 0.4s;position:relative;overflow:hidden;
-}
-.service-card.featured{
-  border-color:rgba(13,148,136,0.2);
-  background:linear-gradient(180deg,rgba(13,148,136,0.06) 0%,var(--navy2) 100%);
-}
-.service-card.featured::before{
-  content:'';position:absolute;top:0;left:0;right:0;height:3px;
-  background:linear-gradient(90deg,var(--teal),var(--teal-g));
-}
-.service-card:hover{transform:translateY(-8px);border-color:rgba(255,255,255,0.08)}
-.service-card.featured:hover{border-color:rgba(13,148,136,0.3)}
-.service-icon{
-  width:56px;height:56px;border-radius:14px;
-  display:flex;align-items:center;justify-content:center;
-  font-size:24px;margin-bottom:24px;
-}
-.service-icon.teal{background:rgba(13,148,136,0.12)}
-.service-icon.orange{background:rgba(249,115,22,0.12)}
-.service-icon.blue{background:rgba(59,130,246,0.12)}
-.service-featured-tag{
-  display:inline-flex;align-items:center;gap:6px;
-  background:rgba(13,148,136,0.1);border:1px solid rgba(13,148,136,0.2);
-  border-radius:20px;padding:4px 14px;font-size:11px;font-weight:700;
-  color:var(--teal-g);margin-bottom:16px;letter-spacing:1px;text-transform:uppercase;
-}
-.service-title{font-size:22px;font-weight:800;margin-bottom:12px}
-.service-desc{font-size:15px;color:var(--g400);line-height:1.7;margin-bottom:24px}
-.service-features{list-style:none;display:flex;flex-direction:column;gap:10px}
-.service-features li{
-  font-size:14px;color:var(--g400);display:flex;align-items:center;gap:10px;
-}
-.service-features li::before{
-  content:'';width:6px;height:6px;border-radius:50%;flex-shrink:0;
-}
-.service-card.featured .service-features li::before{background:var(--teal)}
-.service-card:not(.featured) .service-features li::before{background:var(--g500)}
+  .nav-links a {
+    text-decoration: none;
+    color: var(--gray-600);
+    font-size: 15px;
+    font-weight: 500;
+    transition: color 0.2s;
+  }
 
-/* ===== REPORTS DEEP DIVE ===== */
-.reports-dive{padding:120px 0;position:relative}
-.reports-dive::before{
-  content:'';position:absolute;inset:0;
-  background:linear-gradient(180deg,transparent 0%,rgba(13,148,136,0.02) 50%,transparent 100%);
-}
-.reports-grid{
-  display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:center;
-  position:relative;z-index:2;
-}
-.reports-visual{position:relative}
-.report-mock{
-  background:var(--navy2);border:1px solid rgba(255,255,255,0.06);
-  border-radius:20px;padding:32px;
-  box-shadow:0 30px 60px rgba(0,0,0,0.3);
-}
-.report-mock-header{display:flex;align-items:center;gap:14px;margin-bottom:24px}
-.report-mock-icon{
-  width:48px;height:48px;border-radius:14px;
-  background:linear-gradient(135deg,var(--teal),#0a7c72);
-  display:flex;align-items:center;justify-content:center;font-size:22px;
-}
-.report-mock-title{font-size:18px;font-weight:700}
-.report-mock-sub{font-size:13px;color:var(--g500)}
-.report-mock-rows{display:flex;flex-direction:column;gap:2px}
-.report-mock-row{
-  display:flex;justify-content:space-between;align-items:center;
-  padding:14px 0;border-bottom:1px solid rgba(255,255,255,0.03);
-}
-.report-mock-row:last-child{border:none}
-.report-mock-label{font-size:14px;color:var(--g400)}
-.report-mock-val{font-size:14px;font-weight:700}
-.report-mock-val.green{color:var(--green)}
-.report-mock-val.teal{color:var(--teal)}
-.report-mock-badge{
-  display:inline-flex;align-items:center;gap:6px;
-  background:rgba(13,148,136,0.12);border:1px solid rgba(13,148,136,0.2);
-  border-radius:30px;padding:8px 20px;font-size:13px;font-weight:700;
-  color:var(--teal-g);margin-top:20px;
-}
+  .nav-links a:hover {
+    color: var(--navy);
+  }
 
-/* Report types floating cards */
-.report-type-float{
-  position:absolute;background:var(--navy2);
-  border:1px solid rgba(255,255,255,0.06);border-radius:14px;
-  padding:14px 18px;display:flex;align-items:center;gap:10px;
-  box-shadow:0 15px 30px rgba(0,0,0,0.25);font-size:13px;font-weight:600;
-}
-.report-type-float.t1{top:-15px;right:-15px;animation:float 4s ease-in-out infinite}
-.report-type-float.t2{bottom:-15px;left:-15px;animation:float 4.5s ease-in-out infinite;animation-delay:1.5s}
-.rtf-dot{width:10px;height:10px;border-radius:50%}
-.rtf-dot.teal{background:var(--teal)}.rtf-dot.orange{background:var(--orange)}
+  .nav-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
 
-/* Reports content side */
-.reports-content .section-tag{margin-bottom:16px}
-.reports-content h2{font-size:42px;font-weight:900;line-height:1.1;margin-bottom:20px}
-.reports-content h2 .teal{color:var(--teal)}
-.reports-content>p{font-size:17px;color:var(--g400);line-height:1.7;margin-bottom:40px}
-.report-types{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.report-type{
-  background:var(--navy2);border:1px solid rgba(255,255,255,0.04);
-  border-radius:14px;padding:20px;transition:all 0.3s;
-}
-.report-type:hover{border-color:rgba(13,148,136,0.2);transform:translateY(-2px)}
-.report-type h4{font-size:15px;font-weight:700;margin-bottom:4px}
-.report-type p{font-size:13px;color:var(--g500);line-height:1.5}
+  .btn-ghost {
+    background: none;
+    border: none;
+    color: var(--gray-600);
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 8px 16px;
+    border-radius: 8px;
+    transition: all 0.2s;
+    text-decoration: none;
+  }
 
-/* ===== FLOW SECTION ===== */
-.flow{padding:120px 0}
-.flow-steps{
-  display:grid;grid-template-columns:repeat(3,1fr);gap:40px;
-  margin-top:60px;position:relative;
-}
-.flow-steps::before{
-  content:'';position:absolute;top:40px;left:15%;right:15%;
-  height:2px;background:linear-gradient(90deg,var(--teal),var(--orange),var(--teal));
-  opacity:0.15;
-}
-.flow-step{text-align:center;position:relative;z-index:2}
-.flow-num{
-  width:80px;height:80px;border-radius:50%;
-  background:var(--navy2);border:2px solid rgba(13,148,136,0.2);
-  display:flex;align-items:center;justify-content:center;
-  font-size:32px;font-weight:900;color:var(--teal);
-  margin:0 auto 24px;
-}
-.flow-step h3{font-size:20px;font-weight:700;margin-bottom:8px}
-.flow-step p{font-size:14px;color:var(--g400);line-height:1.6;max-width:280px;margin:0 auto}
+  .btn-ghost:hover {
+    color: var(--navy);
+    background: var(--gray-100);
+  }
 
-/* ===== DEMO CTA ===== */
-.demo-cta{
-  padding:120px 0;position:relative;
-}
-.demo-cta-inner{
-  background:linear-gradient(160deg,var(--navy2) 0%,rgba(13,148,136,0.06) 100%);
-  border:1px solid rgba(13,148,136,0.1);
-  border-radius:24px;padding:80px 60px;text-align:center;position:relative;overflow:hidden;
-}
-.demo-cta-inner::before{
-  content:'';position:absolute;top:-100px;right:-100px;
-  width:400px;height:400px;border-radius:50%;
-  background:radial-gradient(circle,rgba(13,148,136,0.08) 0%,transparent 70%);
-}
-.demo-cta h2{font-size:42px;font-weight:900;margin-bottom:16px;position:relative;z-index:2}
-.demo-cta h2 .teal{color:var(--teal)}
-.demo-cta p{font-size:18px;color:var(--g400);margin-bottom:40px;max-width:500px;margin-left:auto;margin-right:auto;position:relative;z-index:2}
-.demo-cta .btn-primary{font-size:18px;padding:18px 40px;position:relative;z-index:2}
+  .btn-primary {
+    background: var(--teal);
+    color: var(--white);
+    border: none;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 10px 20px;
+    border-radius: 24px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
 
-/* Loti in CTA */
-.demo-loti{
-  position:absolute;bottom:30px;right:60px;z-index:2;
-  filter:drop-shadow(0 10px 25px rgba(236,72,153,0.3));
-  animation:float 5s ease-in-out infinite;
-}
-.demo-speech{
-  position:absolute;bottom:145px;right:140px;z-index:3;
-  background:rgba(236,72,153,0.12);border:1px solid rgba(236,72,153,0.2);
-  border-radius:14px;border-bottom-right-radius:4px;
-  padding:8px 16px;font-size:13px;color:var(--pink-l);font-weight:600;
-  animation:float 5s ease-in-out infinite;animation-delay:0.5s;
-}
+  .btn-primary:hover {
+    background: #0b7f74;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(13,148,136,0.3);
+  }
 
-/* ===== FOOTER ===== */
-.footer{
-  padding:60px 0 40px;
-  border-top:1px solid rgba(255,255,255,0.04);
-}
-.footer-inner{
-  display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:20px;
-}
-.footer-logo{display:flex;align-items:center;gap:10px;font-size:18px;font-weight:800}
-.footer-logo .accent{color:var(--teal)}
-.footer-links{display:flex;gap:24px}
-.footer-links a{font-size:14px;color:var(--g500);transition:color 0.2s}
-.footer-links a:hover{color:var(--w)}
-.footer-bottom{
-  display:flex;justify-content:space-between;align-items:center;
-  margin-top:40px;padding-top:24px;border-top:1px solid rgba(255,255,255,0.04);
-  font-size:13px;color:var(--g500);flex-wrap:wrap;gap:12px;
-}
-.footer-mexico{display:flex;align-items:center;gap:6px}
+  .btn-primary svg {
+    width: 16px;
+    height: 16px;
+  }
 
-/* ===== ANIMATIONS ===== */
-.reveal{opacity:0;transform:translateY(30px);transition:opacity 0.8s,transform 0.8s}
-.reveal.visible{opacity:1;transform:translateY(0)}
+  .btn-secondary {
+    background: var(--navy);
+    color: var(--white);
+    border: none;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 10px 20px;
+    border-radius: 24px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
 
-/* ===== RESPONSIVE ===== */
-@media(max-width:1024px){
-  .hero-grid{grid-template-columns:1fr;gap:50px}
-  .hero h1{font-size:44px}
-  .hero-visual{max-width:500px;margin:0 auto}
-  .reports-grid{grid-template-columns:1fr;gap:50px}
-  .reports-visual{max-width:500px;margin:0 auto}
-  .services-grid{grid-template-columns:1fr}
-  .service-card.featured{order:-1}
-  .pain-grid{grid-template-columns:1fr}
-  .stats-grid{grid-template-columns:repeat(2,1fr);gap:24px}
-  .flow-steps{grid-template-columns:1fr;gap:32px}
-  .flow-steps::before{display:none}
-  .demo-loti,.demo-speech{display:none}
-}
-@media(max-width:768px){
-  .hero{padding:120px 0 60px;min-height:auto}
-  .hero h1{font-size:36px}
-  .hero-sub{font-size:17px}
-  .section-header h2,.problem-headline,.reports-content h2,.demo-cta h2{font-size:32px}
-  .nav-links{display:none}
-  .nav-mobile{display:block}
-  .stats-grid{grid-template-columns:repeat(2,1fr)}
-  .stat-num{font-size:36px}
-  .report-types{grid-template-columns:1fr}
-  .hero-buttons{flex-direction:column}
-  .btn-primary,.btn-secondary{width:100%;justify-content:center}
-  .mock-kpis{grid-template-columns:1fr}
-  .hero-loti{display:none}
-  .demo-cta-inner{padding:50px 30px}
-  .report-type-float{display:none}
-}
+  .btn-secondary:hover {
+    background: var(--navy-light);
+    transform: translateY(-1px);
+  }
+
+  /* ─── HERO ─── */
+  .hero {
+    padding: 140px 48px 80px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 60px;
+    max-width: 1280px;
+    margin: 0 auto;
+    align-items: center;
+    min-height: 90vh;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -100px;
+    right: -200px;
+    width: 800px;
+    height: 800px;
+    background: radial-gradient(circle, rgba(13,148,136,0.08) 0%, rgba(249,115,22,0.05) 50%, transparent 70%);
+    border-radius: 50%;
+    z-index: 0;
+  }
+
+  .hero-content {
+    position: relative;
+    z-index: 1;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--gray-100);
+    color: var(--teal);
+    font-size: 14px;
+    font-weight: 600;
+    padding: 6px 16px;
+    border-radius: 20px;
+    margin-bottom: 24px;
+    border: 1px solid var(--gray-200);
+  }
+
+  .hero-badge .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--teal);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .hero h1 {
+    font-size: 64px;
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -2px;
+    color: var(--navy);
+    margin-bottom: 24px;
+  }
+
+  .hero h1 .gradient {
+    background: linear-gradient(135deg, var(--teal) 0%, var(--orange) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero p {
+    font-size: 19px;
+    color: var(--gray-600);
+    line-height: 1.7;
+    max-width: 520px;
+    margin-bottom: 36px;
+  }
+
+  .hero-ctas {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .btn-large {
+    padding: 14px 28px;
+    font-size: 16px;
+    border-radius: 28px;
+  }
+
+  .btn-text {
+    background: none;
+    border: none;
+    color: var(--gray-700);
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: color 0.2s;
+    text-decoration: none;
+  }
+
+  .btn-text:hover {
+    color: var(--teal);
+  }
+
+  .hero-visual {
+    position: relative;
+    z-index: 1;
+  }
+
+  .dashboard-card {
+    background: var(--white);
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(10,22,40,0.12), 0 0 0 1px rgba(10,22,40,0.05);
+    padding: 28px;
+    position: relative;
+  }
+
+  .dashboard-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+
+  .dashboard-header h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--navy);
+  }
+
+  .dashboard-header span {
+    font-size: 13px;
+    color: var(--gray-500);
+  }
+
+  .stat-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .stat-box {
+    background: var(--gray-50);
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+  }
+
+  .stat-box .label {
+    font-size: 12px;
+    color: var(--gray-500);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+  }
+
+  .stat-box .value {
+    font-size: 28px;
+    font-weight: 800;
+    margin-top: 4px;
+  }
+
+  .stat-box .value.teal { color: var(--teal); }
+  .stat-box .value.orange { color: var(--orange); }
+  .stat-box .value.pink { color: var(--pink); }
+
+  .stat-box .sub {
+    font-size: 11px;
+    color: var(--gray-500);
+    margin-top: 2px;
+  }
+
+  .tank-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .tank-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .tank-bar .name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gray-700);
+    width: 70px;
+  }
+
+  .tank-bar .bar-bg {
+    flex: 1;
+    height: 10px;
+    background: var(--gray-200);
+    border-radius: 5px;
+    overflow: hidden;
+  }
+
+  .tank-bar .bar-fill {
+    height: 100%;
+    border-radius: 5px;
+    transition: width 1.5s ease;
+  }
+
+  .tank-bar .bar-fill.magna { background: var(--teal); width: 57%; }
+  .tank-bar .bar-fill.premium { background: var(--orange); width: 49%; }
+  .tank-bar .bar-fill.diesel { background: var(--pink); width: 69%; }
+
+  .tank-bar .pct {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gray-600);
+    width: 40px;
+    text-align: right;
+  }
+
+  /* Floating mascot */
+  .floating-mascot {
+    position: absolute;
+    bottom: -20px;
+    right: -30px;
+    width: 120px;
+    height: 120px;
+    animation: float 4s ease-in-out infinite;
+  }
+
+  .floating-mascot img {
+    width: 100%;
+    border-radius: 50%;
+    box-shadow: 0 8px 24px rgba(236,72,153,0.3);
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-12px); }
+  }
+
+  /* ─── LOGOS ─── */
+  .logos-section {
+    padding: 60px 48px;
+    text-align: center;
+    border-top: 1px solid var(--gray-200);
+    border-bottom: 1px solid var(--gray-200);
+    background: var(--gray-50);
+  }
+
+  .logos-section p {
+    font-size: 14px;
+    color: var(--gray-500);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 32px;
+  }
+
+  .logos-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 56px;
+    flex-wrap: wrap;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .logo-item {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--gray-400);
+    letter-spacing: -0.5px;
+    opacity: 0.6;
+  }
+
+  /* ─── FEATURES ─── */
+  .features {
+    padding: 100px 48px;
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+
+  .section-label {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--teal);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+  }
+
+  .section-title {
+    font-size: 44px;
+    font-weight: 800;
+    color: var(--navy);
+    line-height: 1.15;
+    letter-spacing: -1.5px;
+    margin-bottom: 16px;
+    max-width: 700px;
+  }
+
+  .section-desc {
+    font-size: 18px;
+    color: var(--gray-600);
+    line-height: 1.7;
+    max-width: 640px;
+    margin-bottom: 60px;
+  }
+
+  .features-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+
+  .feature-card {
+    background: var(--gray-50);
+    border: 1px solid var(--gray-200);
+    border-radius: 16px;
+    padding: 36px;
+    transition: all 0.3s;
+  }
+
+  .feature-card:hover {
+    border-color: var(--gray-300);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+    transform: translateY(-2px);
+  }
+
+  .feature-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+    font-size: 22px;
+  }
+
+  .feature-icon.teal { background: rgba(13,148,136,0.1); }
+  .feature-icon.orange { background: rgba(249,115,22,0.1); }
+  .feature-icon.pink { background: rgba(236,72,153,0.1); }
+  .feature-icon.navy { background: rgba(10,22,40,0.08); }
+
+  .feature-card h3 {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: 12px;
+  }
+
+  .feature-card p {
+    font-size: 15px;
+    color: var(--gray-600);
+    line-height: 1.7;
+    margin-bottom: 20px;
+  }
+
+  .feature-link {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--teal);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: gap 0.2s;
+  }
+
+  .feature-link:hover {
+    gap: 8px;
+  }
+
+  /* ─── STATS ─── */
+  .stats-section {
+    background: var(--navy);
+    padding: 100px 48px;
+  }
+
+  .stats-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+
+  .stats-section .section-label {
+    color: var(--teal-light);
+  }
+
+  .stats-section .section-title {
+    color: var(--white);
+  }
+
+  .stats-section .section-desc {
+    color: rgba(255,255,255,0.6);
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 24px;
+    margin-top: 48px;
+  }
+
+  .stats-grid .stat {
+    padding: 32px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px;
+  }
+
+  .stats-grid .stat .number {
+    font-size: 48px;
+    font-weight: 800;
+    color: var(--white);
+    letter-spacing: -2px;
+  }
+
+  .stats-grid .stat .desc {
+    font-size: 15px;
+    color: rgba(255,255,255,0.5);
+    margin-top: 8px;
+    line-height: 1.5;
+  }
+
+  /* ─── USE CASES ─── */
+  .use-cases {
+    padding: 100px 48px;
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+
+  .cases-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-top: 48px;
+  }
+
+  .case-card {
+    border: 1px solid var(--gray-200);
+    border-radius: 16px;
+    overflow: hidden;
+    transition: all 0.3s;
+  }
+
+  .case-card:hover {
+    box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+    transform: translateY(-2px);
+  }
+
+  .case-card .top-bar {
+    height: 4px;
+  }
+
+  .case-card .top-bar.teal { background: var(--teal); }
+  .case-card .top-bar.orange { background: var(--orange); }
+  .case-card .top-bar.pink { background: var(--pink); }
+
+  .case-card .content {
+    padding: 32px;
+  }
+
+  .case-card h3 {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: 12px;
+  }
+
+  .case-card p {
+    font-size: 15px;
+    color: var(--gray-600);
+    line-height: 1.7;
+    margin-bottom: 20px;
+  }
+
+  /* ─── WHATSAPP CTA ─── */
+  .whatsapp-section {
+    padding: 80px 48px;
+    background: linear-gradient(135deg, var(--gray-50) 0%, rgba(13,148,136,0.04) 100%);
+    border-top: 1px solid var(--gray-200);
+    border-bottom: 1px solid var(--gray-200);
+  }
+
+  .whatsapp-inner {
+    max-width: 1000px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 60px;
+    align-items: center;
+  }
+
+  .whatsapp-inner h2 {
+    font-size: 36px;
+    font-weight: 800;
+    color: var(--navy);
+    letter-spacing: -1px;
+    margin-bottom: 16px;
+  }
+
+  .whatsapp-inner p {
+    font-size: 17px;
+    color: var(--gray-600);
+    line-height: 1.7;
+    margin-bottom: 24px;
+  }
+
+  .whatsapp-visual {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .whatsapp-visual img {
+    width: 140px;
+    border-radius: 50%;
+    box-shadow: 0 12px 32px rgba(236,72,153,0.25);
+  }
+
+  .whatsapp-visual .name {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--navy);
+  }
+
+  .whatsapp-visual .role {
+    font-size: 13px;
+    color: var(--gray-500);
+  }
+
+  /* ─── FOOTER ─── */
+  footer {
+    background: var(--navy);
+    color: rgba(255,255,255,0.6);
+    padding: 80px 48px 40px;
+  }
+
+  .footer-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+
+  .footer-top {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1fr;
+    gap: 48px;
+    margin-bottom: 60px;
+  }
+
+  .footer-brand .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .footer-brand .logo img {
+    height: 32px;
+    filter: brightness(10);
+  }
+
+  .footer-brand .logo span {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--white);
+  }
+
+  .footer-brand p {
+    font-size: 14px;
+    line-height: 1.7;
+    max-width: 320px;
+  }
+
+  .footer-col h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--white);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 20px;
+  }
+
+  .footer-col a {
+    display: block;
+    font-size: 14px;
+    color: rgba(255,255,255,0.5);
+    text-decoration: none;
+    margin-bottom: 12px;
+    transition: color 0.2s;
+  }
+
+  .footer-col a:hover {
+    color: var(--white);
+  }
+
+  .footer-bottom {
+    border-top: 1px solid rgba(255,255,255,0.1);
+    padding-top: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+  }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 768px) {
+    nav { padding: 0 20px; }
+    .nav-links { display: none; }
+    .hero {
+      grid-template-columns: 1fr;
+      padding: 120px 20px 60px;
+      min-height: auto;
+    }
+    .hero h1 { font-size: 40px; }
+    .hero-visual { display: none; }
+    .features { padding: 60px 20px; }
+    .features-grid { grid-template-columns: 1fr; }
+    .section-title { font-size: 32px; }
+    .stats-section { padding: 60px 20px; }
+    .stats-grid { grid-template-columns: 1fr 1fr; }
+    .use-cases { padding: 60px 20px; }
+    .cases-grid { grid-template-columns: 1fr; }
+    .whatsapp-section { padding: 60px 20px; }
+    .whatsapp-inner { grid-template-columns: 1fr; text-align: center; }
+    .whatsapp-visual { margin-top: 20px; }
+    footer { padding: 60px 20px 30px; }
+    .footer-top { grid-template-columns: 1fr 1fr; }
+  }
 </style>
 </head>
 <body>
 
-<!-- ===== NAVBAR ===== -->
-<nav class="navbar">
-  <div class="nav-inner">
-    <a href="/" class="nav-logo">
-      <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-        <rect width="32" height="32" rx="8" fill="#0d9488"/>
-        <path d="M8 16l4-6h8l4 6-4 6H12l-4-6z" fill="white" opacity="0.9"/>
-        <circle cx="16" cy="16" r="3" fill="#0d9488"/>
-      </svg>
-      Control<span class="accent">Petro</span>
+<!-- ─── NAV ─── -->
+<nav>
+  <div class="nav-left">
+    <a href="#" class="nav-logo">
+      <img src="https://drive.google.com/thumbnail?id=1U4b_we3RXomMkBELS8oZ1jYvJqT5s6B3&sz=w400" alt="ControlPetro">
+      <span>ControlPetro</span>
     </a>
     <div class="nav-links">
-      <a href="#servicios">Servicios</a>
-      <a href="#reportes">Reportes</a>
-      <a href="#como-funciona">Como funciona</a>
-      <a href="/demo" class="nav-cta">Probar Demo</a>
+      <a href="#soluciones">Soluciones</a>
+      <a href="#plataforma">Plataforma</a>
+      <a href="#precios">Precios</a>
+      <a href="#nosotros">Nosotros</a>
     </div>
-    <button class="nav-mobile" onclick="document.querySelector('.nav-links').classList.toggle('show')" aria-label="Menu">
-      <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
-    </button>
+  </div>
+  <div class="nav-right">
+    <a href="#" class="btn-ghost">Iniciar sesión</a>
+    <a href="#" class="btn-primary">Solicitar demo <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></a>
   </div>
 </nav>
 
-<!-- ===== HERO ===== -->
-<section class="hero" id="inicio">
-  <div class="container">
-    <div class="hero-grid">
-      <div class="hero-content">
-        <div class="hero-badge"><span class="dot"></span> Plataforma con IA</div>
-        <h1>Reportes <span class="teal">SAT</span> y <span class="teal">CNE</span> en minutos, no en <span class="orange">dias</span>.</h1>
-        <p class="hero-sub">La unica plataforma mexicana que automatiza reportes volumetricos, predice demanda con IA y centraliza todas tus estaciones en un solo dashboard.</p>
-        <div class="hero-buttons">
-          <a href="/demo" class="btn-primary">
-            Ver Demo en Vivo
-            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-          </a>
-          <a href="mailto:contacto@controlpetro.com" class="btn-secondary">
-            Contactar Ventas
-          </a>
+<!-- ─── HERO ─── -->
+<section class="hero">
+  <div class="hero-content">
+    <div class="hero-badge">
+      <span class="dot"></span>
+      Plataforma con IA — Ahora disponible
+    </div>
+    <h1>Infraestructura<br>inteligente para<br><span class="gradient">gasolineras</span></h1>
+    <p>Centraliza el control de combustible de todas tus estaciones en un solo dashboard. Recibe datos por WhatsApp, detecta anomalías con IA y toma decisiones en tiempo real.</p>
+    <div class="hero-ctas">
+      <a href="#" class="btn-primary btn-large">Comenzar ahora <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></a>
+      <a href="#" class="btn-text">Contactar ventas <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></a>
+    </div>
+  </div>
+  <div class="hero-visual">
+    <div class="dashboard-card">
+      <div class="dashboard-header">
+        <h3>GP-EJR — Gazpro Ejército</h3>
+        <span>Hoy, 11 Mar 2026</span>
+      </div>
+      <div class="stat-row">
+        <div class="stat-box">
+          <div class="label">Recibido</div>
+          <div class="value teal">15,000</div>
+          <div class="sub">litros Magna</div>
+        </div>
+        <div class="stat-box">
+          <div class="label">Vendido</div>
+          <div class="value orange">3,746</div>
+          <div class="sub">litros hoy</div>
+        </div>
+        <div class="stat-box">
+          <div class="label">Alertas</div>
+          <div class="value pink">0</div>
+          <div class="sub">anomalías</div>
         </div>
       </div>
-
-      <div class="hero-visual">
-        <!-- Loti floating -->
-        <div class="hero-loti">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="100 200 400 380" width="90" height="85">
-            <circle cx="300" cy="340" r="200" fill="#EC4899"/>
-            <ellipse cx="300" cy="400" rx="130" ry="120" fill="#F9A8D4"/>
-            <line x1="480" y1="210" x2="540" y2="140" stroke="#F43F5E" stroke-width="10" stroke-linecap="round"/>
-            <line x1="490" y1="250" x2="560" y2="210" stroke="#F43F5E" stroke-width="8" stroke-linecap="round"/>
-            <circle cx="240" cy="300" r="30" fill="white"/>
-            <circle cx="248" cy="296" r="16" fill="#0f172a"/>
-            <circle cx="255" cy="289" r="5" fill="white"/>
-            <circle cx="360" cy="300" r="30" fill="white"/>
-            <circle cx="368" cy="296" r="16" fill="#0f172a"/>
-            <circle cx="375" cy="289" r="5" fill="white"/>
-            <path d="M265,370 Q300,400 335,370" fill="none" stroke="#0f172a" stroke-width="4" stroke-linecap="round"/>
-            <circle cx="210" cy="360" r="14" fill="rgba(244,63,94,0.25)"/>
-            <circle cx="390" cy="360" r="14" fill="rgba(244,63,94,0.25)"/>
-          </svg>
+      <div class="tank-bars">
+        <div class="tank-bar">
+          <span class="name">Magna</span>
+          <div class="bar-bg"><div class="bar-fill magna"></div></div>
+          <span class="pct">57%</span>
         </div>
-
-        <!-- Mock dashboard -->
-        <div class="hero-mock">
-          <div class="mock-topbar">
-            <span class="mock-dot r"></span>
-            <span class="mock-dot y"></span>
-            <span class="mock-dot g"></span>
-            <span class="mock-title">ControlPetro Dashboard</span>
-          </div>
-          <div class="mock-kpis">
-            <div class="mock-kpi">
-              <div class="mock-kpi-label">Litros Hoy</div>
-              <div class="mock-kpi-val teal">48,250</div>
-            </div>
-            <div class="mock-kpi">
-              <div class="mock-kpi-label">Estaciones</div>
-              <div class="mock-kpi-val orange">8</div>
-            </div>
-            <div class="mock-kpi">
-              <div class="mock-kpi-label">Reportes SAT</div>
-              <div class="mock-kpi-val green">4/4</div>
-            </div>
-          </div>
-          <div class="mock-chart">
-            <div class="mock-chart-label">Ventas ultimos 7 dias</div>
-            <div class="mock-bars">
-              <div class="mock-bar"></div><div class="mock-bar"></div><div class="mock-bar"></div>
-              <div class="mock-bar"></div><div class="mock-bar"></div><div class="mock-bar"></div>
-              <div class="mock-bar"></div>
-            </div>
-          </div>
+        <div class="tank-bar">
+          <span class="name">Premium</span>
+          <div class="bar-bg"><div class="bar-fill premium"></div></div>
+          <span class="pct">49%</span>
         </div>
-
-        <!-- Floating badge -->
-        <div class="hero-float">
-          <div class="hero-float-icon">&#9989;</div>
-          <div>
-            <div class="hero-float-text">Reporte SAT generado</div>
-            <div class="hero-float-sub">Hace 2 minutos</div>
-          </div>
+        <div class="tank-bar">
+          <span class="name">Diésel</span>
+          <div class="bar-bg"><div class="bar-fill diesel"></div></div>
+          <span class="pct">69%</span>
         </div>
+      </div>
+      <div class="floating-mascot">
+        <img src="https://drive.google.com/thumbnail?id=1r51QL0K8Au8SJnAuMng2JRSJ_EA5nMJE&sz=w400" alt="Loti">
       </div>
     </div>
   </div>
 </section>
 
-<!-- ===== STATS BAR ===== -->
-<section class="stats-bar">
-  <div class="container">
-    <div class="stats-grid reveal">
-      <div>
-        <div class="stat-num">4</div>
-        <div class="stat-label">Tipos de reportes automatizados</div>
+<!-- ─── LOGOS ─── -->
+<section class="logos-section">
+  <p>Cadenas gasolineras que confían en ControlPetro</p>
+  <div class="logos-row">
+    <span class="logo-item">GAZPRO</span>
+    <span class="logo-item">PetroMax</span>
+    <span class="logo-item">FuelServ</span>
+    <span class="logo-item">RedGas</span>
+    <span class="logo-item">OilMex</span>
+  </div>
+</section>
+
+<!-- ─── FEATURES ─── -->
+<section class="features" id="soluciones">
+  <div class="section-label">Soluciones modulares</div>
+  <h2 class="section-title">Una plataforma completa para el control de combustible</h2>
+  <p class="section-desc">Reduce mermas, centraliza la información y opera de manera más eficiente con herramientas potenciadas por inteligencia artificial.</p>
+
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon teal">⛽</div>
+      <h3>Ingesta por WhatsApp</h3>
+      <p>Tus operadores envían fotos de remisiones y tickets por WhatsApp. Loti, nuestra IA, extrae los datos automáticamente y los registra en el dashboard.</p>
+      <a href="#" class="feature-link">Conocer más <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></a>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon orange">📊</div>
+      <h3>Dashboard centralizado</h3>
+      <p>Visualiza el inventario, recepciones y ventas de todas tus estaciones en tiempo real desde un solo panel. Filtra por estación, combustible o fecha.</p>
+      <a href="#" class="feature-link">Conocer más <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></a>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon pink">🔍</div>
+      <h3>Detección de anomalías</h3>
+      <p>Algoritmos de IA comparan recepciones contra ventas e inventario para detectar mermas inusuales, duplicados y discrepancias antes de que se conviertan en pérdidas.</p>
+      <a href="#" class="feature-link">Conocer más <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></a>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon navy">🏢</div>
+      <h3>Multi-estación y multi-empresa</h3>
+      <p>Diseñado para cadenas con múltiples razones sociales y estaciones. Control granular de permisos por organización, RFC y ubicación.</p>
+      <a href="#" class="feature-link">Conocer más <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></a>
+    </div>
+  </div>
+</section>
+
+<!-- ─── STATS ─── -->
+<section class="stats-section" id="plataforma">
+  <div class="stats-inner">
+    <div class="section-label">Escala nacional</div>
+    <h2 class="section-title">La columna vertebral de tu operación gasolinera</h2>
+    <p class="section-desc">ControlPetro está diseñado para manejar los datos de cadenas gasolineras de cualquier tamaño, desde 2 hasta 200 estaciones.</p>
+
+    <div class="stats-grid">
+      <div class="stat">
+        <div class="number">8</div>
+        <div class="desc">estaciones conectadas en Ciudad Juárez con datos en tiempo real.</div>
       </div>
-      <div>
-        <div class="stat-num">2 min</div>
-        <div class="stat-label">Tiempo promedio de generacion</div>
+      <div class="stat">
+        <div class="number">99.9%</div>
+        <div class="desc">disponibilidad de la plataforma para operaciones críticas.</div>
       </div>
-      <div>
-        <div class="stat-num">8</div>
-        <div class="stat-label">Estaciones GazPro conectadas</div>
+      <div class="stat">
+        <div class="number">24/7</div>
+        <div class="desc">monitoreo continuo con alertas automáticas por WhatsApp.</div>
       </div>
-      <div>
-        <div class="stat-num">100%</div>
-        <div class="stat-label">Cumplimiento SAT garantizado</div>
+      <div class="stat">
+        <div class="number">&lt;30s</div>
+        <div class="desc">del envío de la foto al registro en el dashboard centralizado.</div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ===== PROBLEM ===== -->
-<section class="problem reveal">
-  <div class="container">
-    <div class="section-tag">El Problema</div>
-    <h2 class="problem-headline">85% de gasolineras en Mexico generan reportes en <span class="orange">Excel</span>.</h2>
-    <p class="problem-sub">Errores humanos, horas perdidas y multas del SAT. Nosotros cambiamos eso con automatizacion e inteligencia artificial.</p>
-    <div class="pain-grid">
-      <div class="pain-card">
-        <div class="pain-icon">&#128196;</div>
-        <div class="pain-title">Reportes manuales</div>
-        <div class="pain-desc">Horas copiando datos a Excel, propenso a errores que pueden resultar en multas del SAT.</div>
-        <div class="pain-arrow">Nosotros: 2 minutos con IA &#8594;</div>
+<!-- ─── USE CASES ─── -->
+<section class="use-cases">
+  <div class="section-label">Casos de uso</div>
+  <h2 class="section-title">Hecho para la industria gasolinera mexicana</h2>
+
+  <div class="cases-grid">
+    <div class="case-card">
+      <div class="top-bar teal"></div>
+      <div class="content">
+        <h3>Cadenas gasolineras</h3>
+        <p>Centraliza la información de todas tus estaciones y razones sociales. Detecta mermas, controla recepciones de pipa y genera reportes operativos diarios sin captura manual.</p>
+        <a href="#" class="feature-link">Conocer más <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></a>
       </div>
-      <div class="pain-card">
-        <div class="pain-icon">&#128200;</div>
-        <div class="pain-title">Sin visibilidad</div>
-        <div class="pain-desc">Cada estacion opera como isla. No hay forma rapida de ver el inventario en tiempo real de toda la red.</div>
-        <div class="pain-arrow">Nosotros: Dashboard unificado &#8594;</div>
+    </div>
+
+    <div class="case-card">
+      <div class="top-bar orange"></div>
+      <div class="content">
+        <h3>Estaciones independientes</h3>
+        <p>Digitaliza tu operación sin necesidad de sistemas costosos. Solo envía las fotos de tus tickets por WhatsApp y obtén un dashboard profesional al instante.</p>
+        <a href="#" class="feature-link">Conocer más <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></a>
       </div>
-      <div class="pain-card">
-        <div class="pain-icon">&#9888;&#65039;</div>
-        <div class="pain-title">Pedidos a ciegas</div>
-        <div class="pain-desc">Sin datos historicos de consumo, los pedidos de combustible se hacen por intuicion, causando sobreinventario o desabasto.</div>
-        <div class="pain-arrow">Nosotros: Prediccion con IA &#8594;</div>
+    </div>
+
+    <div class="case-card">
+      <div class="top-bar pink"></div>
+      <div class="content">
+        <h3>Operadores de campo</h3>
+        <p>Sin apps complicadas ni capacitaciones largas. Los despachadores ya saben usar WhatsApp — ahora cada foto que envían alimenta el sistema central automáticamente.</p>
+        <a href="#" class="feature-link">Conocer más <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></a>
+      </div>
+    </div>
+
+    <div class="case-card">
+      <div class="top-bar teal"></div>
+      <div class="content">
+        <h3>Cumplimiento regulatorio</h3>
+        <p>Genera los reportes que necesitas para la CRE y el SAT. Historial completo de transacciones, inventarios y volúmenes por estación con trazabilidad total.</p>
+        <a href="#" class="feature-link">Conocer más <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></a>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ===== SERVICES ===== -->
-<section class="services" id="servicios">
-  <div class="container">
-    <div class="section-header reveal">
-      <h2>Tres herramientas, <span class="teal">una plataforma</span></h2>
-      <p>Todo lo que necesita tu gasolinera para cumplir con el SAT, optimizar inventario y tomar mejores decisiones.</p>
+<!-- ─── WHATSAPP CTA ─── -->
+<section class="whatsapp-section">
+  <div class="whatsapp-inner">
+    <div>
+      <h2>Conoce a Loti, tu asistente de combustible</h2>
+      <p>Loti es nuestra asistente de IA que vive en WhatsApp. Recibe fotos de remisiones, extrae los datos, verifica duplicados y registra todo en el dashboard — sin que tus operadores tengan que aprender un sistema nuevo.</p>
+      <a href="#" class="btn-primary btn-large">Probar con Loti <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></a>
     </div>
-    <div class="services-grid">
-      <!-- FEATURED: Report Generation -->
-      <div class="service-card featured reveal">
-        <div class="service-icon teal">&#128203;</div>
-        <div class="service-featured-tag">&#11088; Servicio Estrella</div>
-        <div class="service-title">Generacion de Reportes</div>
-        <div class="service-desc">Genera reportes SAT volumetricos, CNE semanales, cierres de inventario y tarifas de precios con un clic. La IA valida los datos antes de enviar.</div>
-        <ul class="service-features">
-          <li>Reporte SAT Volumetrico automatico</li>
-          <li>Reporte CNE Semanal listo para envio</li>
-          <li>Cierre de inventario diario</li>
-          <li>Validacion inteligente con IA</li>
-          <li>Generacion de XML SAT desde documentos</li>
-        </ul>
-      </div>
-
-      <!-- Predictions -->
-      <div class="service-card reveal">
-        <div class="service-icon orange">&#129504;</div>
-        <div class="service-title">Prediccion de Inventario</div>
-        <div class="service-desc">Algoritmos de IA que analizan consumo historico para predecir demanda y recomendar pedidos optimos.</div>
-        <ul class="service-features">
-          <li>Pronostico de demanda por estacion</li>
-          <li>Recomendaciones de pedido</li>
-          <li>Alertas de nivel critico</li>
-          <li>Optimizacion de costos de compra</li>
-        </ul>
-      </div>
-
-      <!-- Dashboard -->
-      <div class="service-card reveal">
-        <div class="service-icon blue">&#128202;</div>
-        <div class="service-title">Dashboard Centralizado</div>
-        <div class="service-desc">Monitorea todas tus estaciones desde un solo lugar. Ventas, inventario y cumplimiento en tiempo real.</div>
-        <ul class="service-features">
-          <li>KPIs en tiempo real</li>
-          <li>Monitoreo de 8+ estaciones</li>
-          <li>Alertas inteligentes por prioridad</li>
-          <li>Historial de transacciones</li>
-        </ul>
-      </div>
+    <div class="whatsapp-visual">
+      <img src="https://drive.google.com/thumbnail?id=1r51QL0K8Au8SJnAuMng2JRSJ_EA5nMJE&sz=w400" alt="Loti">
+      <span class="name">Loti</span>
+      <span class="role">Asistente IA de ControlPetro</span>
     </div>
   </div>
 </section>
 
-<!-- ===== REPORTS DEEP DIVE ===== -->
-<section class="reports-dive" id="reportes">
-  <div class="container">
-    <div class="reports-grid">
-      <div class="reports-visual reveal">
-        <div class="report-mock">
-          <div class="report-mock-header">
-            <div class="report-mock-icon">&#128203;</div>
-            <div>
-              <div class="report-mock-title">Reporte SAT Volumetrico</div>
-              <div class="report-mock-sub">Generado automaticamente</div>
-            </div>
-          </div>
-          <div class="report-mock-rows">
-            <div class="report-mock-row">
-              <span class="report-mock-label">Estaciones</span>
-              <span class="report-mock-val">8 activas</span>
-            </div>
-            <div class="report-mock-row">
-              <span class="report-mock-label">Litros recibidos</span>
-              <span class="report-mock-val">124,500 L</span>
-            </div>
-            <div class="report-mock-row">
-              <span class="report-mock-label">Litros vendidos</span>
-              <span class="report-mock-val">118,200 L</span>
-            </div>
-            <div class="report-mock-row">
-              <span class="report-mock-label">Magna</span>
-              <span class="report-mock-val">$18.85 /L</span>
-            </div>
-            <div class="report-mock-row">
-              <span class="report-mock-label">Premium</span>
-              <span class="report-mock-val">$20.60 /L</span>
-            </div>
-            <div class="report-mock-row">
-              <span class="report-mock-label">Estado</span>
-              <span class="report-mock-val green">Listo para enviar</span>
-            </div>
-          </div>
-          <div class="report-mock-badge">&#10003; VALIDADO POR IA</div>
+<!-- ─── FOOTER ─── -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-top">
+      <div class="footer-brand">
+        <div class="logo">
+          <img src="https://drive.google.com/thumbnail?id=1U4b_we3RXomMkBELS8oZ1jYvJqT5s6B3&sz=w400" alt="ControlPetro">
+          <span>ControlPetro</span>
         </div>
-
-        <!-- Floating type cards -->
-        <div class="report-type-float t1">
-          <span class="rtf-dot teal"></span> CNE Semanal
-        </div>
-        <div class="report-type-float t2">
-          <span class="rtf-dot orange"></span> Cierre Inventario
-        </div>
+        <p>Infraestructura inteligente para la industria gasolinera mexicana. Centraliza, automatiza y controla tu operación de combustible.</p>
       </div>
-
-      <div class="reports-content reveal">
-        <div class="section-tag">Reportes con IA</div>
-        <h2>Sube tus datos. La IA genera <span class="teal">el reporte.</span></h2>
-        <p>Cumple con la normativa mexicana sin esfuerzo. Nuestro motor de IA genera, valida y formatea reportes listos para enviar al SAT y la CNE.</p>
-
-        <div class="report-types">
-          <div class="report-type">
-            <h4>&#128196; SAT Volumetrico</h4>
-            <p>Reporte de control volumetrico requerido por el SAT. Generacion de XML cumpliendo Anexo 30.</p>
-          </div>
-          <div class="report-type">
-            <h4>&#128202; CNE Semanal</h4>
-            <p>Reporte semanal para la Comision Nacional de Energia con precios y volumenes.</p>
-          </div>
-          <div class="report-type">
-            <h4>&#128230; Cierre de Inventario</h4>
-            <p>Reporte diario de cierre con niveles de tanque, recepciones y ventas por combustible.</p>
-          </div>
-          <div class="report-type">
-            <h4>&#128176; Tarifa de Precios</h4>
-            <p>Comparativo de precios de venta vs compra por estacion con margenes calculados.</p>
-          </div>
-        </div>
+      <div class="footer-col">
+        <h4>Producto</h4>
+        <a href="#">Dashboard</a>
+        <a href="#">Ingesta WhatsApp</a>
+        <a href="#">Detección de anomalías</a>
+        <a href="#">API</a>
+        <a href="#">Precios</a>
       </div>
-    </div>
-  </div>
-</section>
-
-<!-- ===== HOW IT WORKS ===== -->
-<section class="flow" id="como-funciona">
-  <div class="container">
-    <div class="section-header reveal">
-      <h2>Tres pasos. <span class="teal">Cero complicaciones.</span></h2>
-      <p>Empieza a generar reportes en minutos, no en semanas.</p>
-    </div>
-    <div class="flow-steps">
-      <div class="flow-step reveal">
-        <div class="flow-num">1</div>
-        <h3>Conecta tus estaciones</h3>
-        <p>Agrega la informacion de tus gasolineras, tanques y dispensarios. Nosotros hacemos el resto.</p>
+      <div class="footer-col">
+        <h4>Empresa</h4>
+        <a href="#">Nosotros</a>
+        <a href="#">Blog</a>
+        <a href="#">Casos de éxito</a>
+        <a href="#">Contacto</a>
       </div>
-      <div class="flow-step reveal">
-        <div class="flow-num">2</div>
-        <h3>Sube tus datos</h3>
-        <p>Carga tus lecturas de tanque, recepciones y ventas. Acepta PDF, Excel, imagenes o ingreso manual.</p>
-      </div>
-      <div class="flow-step reveal">
-        <div class="flow-num">3</div>
-        <h3>Genera y envia</h3>
-        <p>La IA genera reportes SAT, CNE y de inventario validados. Descarga o envia directamente.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ===== DEMO CTA ===== -->
-<section class="demo-cta" id="demo">
-  <div class="container">
-    <div class="demo-cta-inner reveal">
-      <h2>Explora el dashboard <span class="teal">completo</span></h2>
-      <p>Prueba ControlPetro con datos reales de 8 estaciones GazPro en Ciudad Juarez. Sin registro.</p>
-      <a href="/demo" class="btn-primary">
-        Probar Demo Gratis
-        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-      </a>
-      <!-- Loti -->
-      <div class="demo-loti">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="100 200 400 380" width="100" height="95">
-          <circle cx="300" cy="340" r="200" fill="#EC4899"/>
-          <ellipse cx="300" cy="400" rx="130" ry="120" fill="#F9A8D4"/>
-          <line x1="480" y1="210" x2="540" y2="140" stroke="#F43F5E" stroke-width="10" stroke-linecap="round"/>
-          <line x1="490" y1="250" x2="560" y2="210" stroke="#F43F5E" stroke-width="8" stroke-linecap="round"/>
-          <line x1="495" y1="290" x2="565" y2="270" stroke="#F43F5E" stroke-width="7" stroke-linecap="round"/>
-          <circle cx="240" cy="300" r="30" fill="white"/>
-          <circle cx="248" cy="296" r="16" fill="#0f172a"/>
-          <circle cx="255" cy="289" r="5" fill="white"/>
-          <circle cx="360" cy="300" r="30" fill="white"/>
-          <circle cx="368" cy="296" r="16" fill="#0f172a"/>
-          <circle cx="375" cy="289" r="5" fill="white"/>
-          <path d="M265,370 Q300,400 335,370" fill="none" stroke="#0f172a" stroke-width="4" stroke-linecap="round"/>
-          <circle cx="210" cy="360" r="14" fill="rgba(244,63,94,0.25)"/>
-          <circle cx="390" cy="360" r="14" fill="rgba(244,63,94,0.25)"/>
-        </svg>
-      </div>
-      <div class="demo-speech">Pruebalo gratis &#10024;</div>
-    </div>
-  </div>
-</section>
-
-<!-- ===== FOOTER ===== -->
-<footer class="footer">
-  <div class="container">
-    <div class="footer-inner">
-      <div class="footer-logo">
-        <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
-          <rect width="32" height="32" rx="8" fill="#0d9488"/>
-          <path d="M8 16l4-6h8l4 6-4 6H12l-4-6z" fill="white" opacity="0.9"/>
-          <circle cx="16" cy="16" r="3" fill="#0d9488"/>
-        </svg>
-        Control<span class="accent">Petro</span>
-      </div>
-      <div class="footer-links">
-        <a href="#servicios">Servicios</a>
-        <a href="#reportes">Reportes</a>
-        <a href="/demo">Demo</a>
-        <a href="mailto:contacto@controlpetro.com">Contacto</a>
+      <div class="footer-col">
+        <h4>Legal</h4>
+        <a href="#">Aviso de privacidad</a>
+        <a href="#">Términos de servicio</a>
+        <a href="#">Política de cookies</a>
       </div>
     </div>
     <div class="footer-bottom">
       <span>&copy; 2026 ControlPetro. Todos los derechos reservados.</span>
-      <span class="footer-mexico">Hecho con &#10084;&#65039; en Ciudad Juarez, Mexico &#127474;&#127485;</span>
+      <span>Hecho en Ciudad Juárez, Chihuahua</span>
     </div>
   </div>
 </footer>
 
-<!-- ===== SCROLL ANIMATIONS ===== -->
-<script>
-document.addEventListener('DOMContentLoaded',()=>{
-  const observer=new IntersectionObserver((entries)=>{
-    entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');observer.unobserve(e.target)}})
-  },{threshold:0.05,rootMargin:'0px 0px 200px 0px'});
-  document.querySelectorAll('.reveal').forEach(el=>observer.observe(el));
-
-  // Navbar scroll effect
-  const nav=document.querySelector('.navbar');
-  window.addEventListener('scroll',()=>{
-    nav.style.background=window.scrollY>50?'rgba(10,22,40,0.95)':'rgba(10,22,40,0.85)';
-  });
-
-  // Mobile nav toggle
-  const style=document.createElement('style');
-  style.textContent=`
-    @media(max-width:768px){
-      .nav-links.show{
-        display:flex!important;flex-direction:column;
-        position:absolute;top:72px;left:0;right:0;
-        background:rgba(10,22,40,0.98);backdrop-filter:blur(20px);
-        padding:20px 24px;gap:16px;
-        border-bottom:1px solid rgba(255,255,255,0.04);
-      }
-    }
-  `;
-  document.head.appendChild(style);
-});
-</script>
 </body>
-</html>
+        </html>

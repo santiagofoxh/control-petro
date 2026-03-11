@@ -37,7 +37,11 @@ app.register_blueprint(ingest_bp)
 #  Serve frontend (public â no auth)
 # ------------------------------------------------------------------ #
 @app.route("/")
-def landing():
+def index():
+    """Serve landing page or app based on subdomain."""
+    host = request.host.split(":")[0]
+    if host == "app.controlpetro.com":
+        return send_from_directory("static", "index.html")
     return send_from_directory("static", "landing.html")
 
 

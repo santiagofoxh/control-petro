@@ -1,10 +1,11 @@
 """Authentication and authorization for Control Petro.
 
 Uses JWT tokens for stateless auth. Supports:
-- Web dashboard login (email + password â JWT)
+- Web dashboard login (username + password -> JWT)
 - OpenClaw service token (pre-shared bearer token for MCP/WhatsApp)
 - Role-based access control (platform_admin, org_admin, group_manager, operator)
 """
+
 import os
 import hashlib
 import hmac
@@ -14,13 +15,12 @@ from functools import wraps
 
 import jwt
 from flask import request, jsonify, g
-
 from database import db, User
 
+# ------------------------------------------------------------------ #
+# Config
+# ------------------------------------------------------------------ #
 
-# ------------------------------------------------------------------ #
-#  Config
-# ------------------------------------------------------------------ #
 JWT_SECRET = os.environ.get("JWT_SECRET", secrets.token_hex(32))
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_HOURS = int(os.environ.get("JWT_EXPIRY_HOURS", "24"))
@@ -30,8 +30,9 @@ OPENCLAW_SERVICE_TOKEN = os.environ.get("OPENCLAW_SERVICE_TOKEN", "")
 
 
 # ------------------------------------------------------------------ #
-#  Password hashing (using hashlib â no extra C dependencies)
+# Password hashing (using hashlib - no extra C dependencies)
 # ------------------------------------------------------------------ #
+
 def hash_password(password: str) -> str:
     """Hash password with PBKDF2-SHA256."""
     salt = secrets.token_hex(16)
@@ -50,13 +51,14 @@ def verify_password(password: str, stored_hash: str) -> bool:
 
 
 # ------------------------------------------------------------------ #
-#  JWT Token generation
+# JWT Token generation
 # ------------------------------------------------------------------ #
+
 def create_token(user: User) -> str:
     """Create a JWT token for a user."""
     payload = {
         "sub": str(user.id),
-        "email": user.email,
+        "username": user.username,
         "name": user.name,
         "role": user.role,
         "org_id": user.organization_id,
@@ -74,14 +76,14 @@ def decode_token(token: str) -> dict:
 
 
 # ------------------------------------------------------------------ #
-#  Auth middleware
+# Auth middleware
 # ------------------------------------------------------------------ #
+
 def require_auth(f):
     """Decorator: require valid JWT or service token on request."""
     @wraps(f)
     def decorated(*args, **kwargs):
         auth_header = request.headers.get("Authorization", "")
-
         if not auth_header.startswith("Bearer "):
             return jsonify({"error": "Token requerido. Incluye Authorization: Bearer <token>"}), 401
 
@@ -131,14 +133,14 @@ def optional_auth(f):
         auth_header = request.headers.get("Authorization", "")
 
         if not auth_header.startswith("Bearer "):
-            # No auth â demo / public mode
+            # No auth - demo / public mode
             g.current_user = None
             g.is_service = False
             g.demo_mode = True
             g.service_role = "platform_admin"  # demo sees everything
             return f(*args, **kwargs)
 
-        # Has a token â validate it normally
+        # Has a token - validate it normally
         token = auth_header[7:]
 
         if OPENCLAW_SERVICE_TOKEN and hmac.compare_digest(token, OPENCLAW_SERVICE_TOKEN):
@@ -186,15 +188,16 @@ def require_role(*allowed_roles):
                 return jsonify({"error": "No autorizado."}), 403
 
             if role not in allowed_roles:
-                return jsonify({"error": f"Rol '{role}' no tiene acceso. Roles permitidos: {', '.join(allowed_roles)}"}), 403
+                return jsonify({"error": f"Rol '{role}' no tiene acceso. Roles permitidos: {}, ".join(allowed_roles)}"}), 403
             return f(*args, **kwargs)
         return decorated
     return decorator
 
 
 # ------------------------------------------------------------------ #
-#  Scope helpers â filter data by user's access level
+# Scope helpers - filter data by user's access level
 # ------------------------------------------------------------------ #
+
 def get_accessible_station_ids() -> list:
     """Return list of station IDs the current user can access."""
     from database import Station, RazonSocial
@@ -216,7 +219,8 @@ def get_accessible_station_ids() -> list:
             organization_id=user.organization_id, active=True
         ).all()]
         return [s.id for s in Station.query.filter(
-            Station.razon_social_id.in_(razon_ids), Station.active == True
+            Station.razon_social_id.in_(razon_ids),
+            Station.active == True
         ).all()]
 
     if user.role == "group_manager":

@@ -1,35 +1,30 @@
 """Seed the database with realistic GazPro demo data."""
+
 import random
 import numpy as np
 from datetime import datetime, date, timedelta
+
 from database import (
     db, Organization, RazonSocial, User, Station,
     FuelTransaction, InventorySnapshot,
 )
 from auth import hash_password
 
-
-# ------------------------------------------------------------------ #
-#  Organization & RazÃ³n Social structure
-# ------------------------------------------------------------------ #
 ORG = {"name": "GazPro", "slug": "gazpro"}
 
 RAZONES = [
     {"name": "GazPro Norte", "rfc": "GNO210315AB1", "legal_name": "Gasolinera GazPro Norte SA de CV"},
-    {"name": "GazPro Sur",   "rfc": "GSU210315CD2", "legal_name": "Gasolinera GazPro Sur SA de CV"},
+    {"name": "GazPro Sur", "rfc": "GSU210315CD2", "legal_name": "Gasolinera GazPro Sur SA de CV"},
 ]
 
-# Which stations go in which RazÃ³n Social (by code)
 RAZON_STATIONS = {
     "GazPro Norte": ["GP-EJR", "GP-MOR", "GP-ANA", "GP-CHA"],
-    "GazPro Sur":   ["GP-K20", "GP-FUN", "GP-AME", "GP-INS"],
+    "GazPro Sur": ["GP-K20", "GP-FUN", "GP-AME", "GP-INS"],
 }
 
-# ------------------------------------------------------------------ #
-#  Users
-# ------------------------------------------------------------------ #
 USERS = [
     {
+        "username": "santiago",
         "email": "santiago@controlpetro.com",
         "password": "admin123",
         "name": "Santiago Fox",
@@ -39,6 +34,7 @@ USERS = [
         "approved": True,
     },
     {
+        "username": "carlos.medina",
         "email": "carlos@gazpro.mx",
         "password": "gazpro123",
         "name": "Carlos Medina",
@@ -48,6 +44,7 @@ USERS = [
         "approved": True,
     },
     {
+        "username": "lucia.torres",
         "email": "lucia@gazpro.mx",
         "password": "gazpro123",
         "name": "Lucia Torres",
@@ -57,6 +54,7 @@ USERS = [
         "approved": True,
     },
     {
+        "username": "roberto.gonzalez",
         "email": "roberto@gazpro.mx",
         "password": "gazpro123",
         "name": "Roberto Gonzalez",
@@ -66,6 +64,7 @@ USERS = [
         "approved": True,
     },
     {
+        "username": "maria.sanchez",
         "email": "maria@gazpro.mx",
         "password": "operator1",
         "name": "Maria Sanchez",
@@ -76,6 +75,7 @@ USERS = [
         "approved": True,
     },
     {
+        "username": "jorge.ramirez",
         "email": "jorge@gazpro.mx",
         "password": "operator2",
         "name": "Jorge Ramirez",
@@ -87,29 +87,31 @@ USERS = [
     },
 ]
 
-
-# ------------------------------------------------------------------ #
-#  8 confirmed real GazPro stations in Ciudad Juarez (March 2026)
-# ------------------------------------------------------------------ #
 STATIONS = [
-    {"code": "GP-EJR", "name": "Gazpro Ejercito",     "address": "Av. Ejercito Nacional 8694",              "lat": 31.7282, "lng": -106.4468, "mc": 50000, "pc": 25000, "dc": 45000},
-    {"code": "GP-MOR", "name": "Gazpro Morin",         "address": "Blvd. Manuel Gomez Morin 7396",           "lat": 31.7435, "lng": -106.4380, "mc": 50000, "pc": 25000, "dc": 45000},
-    {"code": "GP-ANA", "name": "Gazpro Anapra",        "address": "Blvd. Bernardo Norzagaray 3520",          "lat": 31.7830, "lng": -106.5320, "mc": 45000, "pc": 20000, "dc": 40000},
-    {"code": "GP-K20", "name": "Gazpro K20",           "address": "Carr. Panamericana 10325",                "lat": 31.6310, "lng": -106.3990, "mc": 55000, "pc": 20000, "dc": 55000},
-    {"code": "GP-FUN", "name": "Gazpro Fundadores",    "address": "Blvd. Talamas Camandari 1900",            "lat": 31.6950, "lng": -106.4240, "mc": 45000, "pc": 25000, "dc": 40000},
-    {"code": "GP-AME", "name": "Gazpro Americas",      "address": "Av. de la Raza, Col. Centro",             "lat": 31.7100, "lng": -106.4440, "mc": 40000, "pc": 20000, "dc": 35000},
-    {"code": "GP-CHA", "name": "Gazpro Charro",        "address": "Paseo Triunfo de la Republica / Av. del Charro", "lat": 31.7190, "lng": -106.4600, "mc": 50000, "pc": 25000, "dc": 45000},
-    {"code": "GP-INS", "name": "Gazpro Insurgentes",   "address": "Av. de los Insurgentes 2980",             "lat": 31.7220, "lng": -106.4560, "mc": 45000, "pc": 20000, "dc": 40000},
+    {"code": "GP-EJR", "name": "Gazpro Ejercito", "address": "Av. Ejercito Nacional 8694",
+     "lat": 31.7282, "lng": -106.4468, "mc": 50000, "pc": 25000, "dc": 45000},
+    {"code": "GP-MOR", "name": "Gazpro Morin", "address": "Blvd. Manuel Gomez Morin 7396",
+     "lat": 31.7435, "lng": -106.4380, "mc": 50000, "pc": 25000, "dc": 45000},
+    {"code": "GP-ANA", "name": "Gazpro Anapra", "address": "Blvd. Bernardo Norzagaray 3520",
+     "lat": 31.7830, "lng": -106.5320, "mc": 45000, "pc": 20000, "dc": 40000},
+    {"code": "GP-K20", "name": "Gazpro K20", "address": "Carr. Panamericana 10325",
+     "lat": 31.6310, "lng": -106.3990, "mc": 55000, "pc": 20000, "dc": 55000},
+    {"code": "GP-FUN", "name": "Gazpro Fundadores", "address": "Blvd. Talamas Camandari 1900",
+     "lat": 31.6950, "lng": -106.4240, "mc": 45000, "pc": 25000, "dc": 40000},
+    {"code": "GP-AME", "name": "Gazpro Americas", "address": "Av. de la Raza, Col. Centro",
+     "lat": 31.7100, "lng": -106.4440, "mc": 40000, "pc": 20000, "dc": 35000},
+    {"code": "GP-CHA", "name": "Gazpro Charro", "address": "Paseo Triunfo de la Republica / Av. del Charro",
+     "lat": 31.7190, "lng": -106.4600, "mc": 50000, "pc": 25000, "dc": 45000},
+    {"code": "GP-INS", "name": "Gazpro Insurgentes", "address": "Av. de los Insurgentes 2980",
+     "lat": 31.7220, "lng": -106.4560, "mc": 45000, "pc": 20000, "dc": 40000},
 ]
 
-# Base daily demand profiles (liters/day) by station size
 DEMAND_PROFILES = {
-    "high": {"magna": (3500, 600), "premium": (1200, 300), "diesel": (2800, 500)},
-    "medium": {"magna": (2500, 400), "premium": (800, 200), "diesel": (2000, 350)},
-    "low": {"magna": (1800, 300), "premium": (500, 150), "diesel": (1400, 250)},
+    "high":   {"magna": (3500, 600), "premium": (1200, 300), "diesel": (2800, 500)},
+    "medium": {"magna": (2500, 400), "premium": (800, 200),  "diesel": (2000, 350)},
+    "low":    {"magna": (1800, 300), "premium": (500, 150),  "diesel": (1400, 250)},
 }
 
-# Day-of-week multipliers (Mon=0 through Sun=6)
 DOW_MULTIPLIERS = [1.05, 1.0, 1.0, 1.02, 1.1, 0.9, 0.85]
 
 
@@ -123,33 +125,24 @@ def assign_demand_profile(station):
 
 
 def seed_database():
-    """Create org hierarchy, users, stations, transactions, and snapshots."""
-
-    # ---- 1. Organization ----
     print("Seeding organization...")
     org = Organization(name=ORG["name"], slug=ORG["slug"], active=True)
     db.session.add(org)
     db.session.flush()
 
-    # ---- 2. Razones Sociales ----
     print("Seeding razones sociales...")
-    razon_map = {}  # name -> RazonSocial object
+    razon_map = {}
     for r in RAZONES:
         rs = RazonSocial(
-            organization_id=org.id,
-            name=r["name"],
-            rfc=r["rfc"],
-            legal_name=r["legal_name"],
-            active=True,
+            organization_id=org.id, name=r["name"], rfc=r["rfc"],
+            legal_name=r["legal_name"], active=True,
         )
         db.session.add(rs)
         razon_map[r["name"]] = rs
     db.session.flush()
 
-    # ---- 3. Stations (linked to RazÃ³n Social) ----
     print("Seeding stations...")
-    station_map = {}  # code -> Station object
-    # Build reverse lookup: station code -> razon name
+    station_map = {}
     code_to_razon = {}
     for razon_name, codes in RAZON_STATIONS.items():
         for code in codes:
@@ -164,20 +157,19 @@ def seed_database():
             city="Ciudad Juarez", state="Chihuahua",
             latitude=s["lat"], longitude=s["lng"],
             magna_capacity=s["mc"], premium_capacity=s["pc"], diesel_capacity=s["dc"],
-            razon_social_id=razon.id if razon else None,
-            active=True,
+            razon_social_id=razon.id if razon else None, active=True,
         )
         db.session.add(station)
         stations.append(station)
         station_map[s["code"]] = station
     db.session.flush()
 
-    # ---- 4. Users ----
     print("Seeding users...")
     for u in USERS:
         razon = razon_map.get(u.get("razon")) if u.get("razon") else None
         user = User(
-            email=u["email"],
+            username=u["username"],
+            email=u.get("email"),
             password_hash=hash_password(u["password"]),
             name=u["name"],
             phone=u.get("phone"),
@@ -189,15 +181,15 @@ def seed_database():
         )
         db.session.add(user)
         db.session.flush()
-
-        # Assign stations for operators
         if u.get("stations"):
             for code in u["stations"]:
                 st = station_map.get(code)
                 if st:
                     user.assigned_stations.append(st)
-    db.session.commit()
 
+    db.session.commit()
+    print(f"Created {len(USERS)} users, 1 org, {len(RAZONES)} razones sociales.")
+    db.session.commit()
     print(f"Created {len(USERS)} users, 1 org, {len(RAZONES)} razones sociales.")
 
     # ---- 5. Transaction data (30 days) ----
@@ -235,10 +227,14 @@ def seed_database():
                 # Apply transactions
                 if delivery > 0:
                     hour = random.choice([5, 6, 7, 8])
-                    ts = datetime.combine(current_date, datetime.min.time().replace(hour=hour, minute=random.randint(0, 59)))
+                    ts = datetime.combine(current_date, datetime.min.time().replace(
+                        hour=hour, minute=random.randint(0, 59)
+                    ))
                     tx = FuelTransaction(
-                        station_id=station.id, fuel_type=ft,
-                        transaction_type="received", liters=delivery,
+                        station_id=station.id,
+                        fuel_type=ft,
+                        transaction_type="received",
+                        liters=delivery,
                         price_per_liter={"magna": 17.20, "premium": 18.80, "diesel": 20.60}[ft],
                         timestamp=ts,
                         source="web",
@@ -252,13 +248,16 @@ def seed_database():
                     block_pct = {8: 0.25, 12: 0.30, 16: 0.28, 20: 0.17}[block_hour]
                     block_liters = remaining_demand * block_pct * random.uniform(0.9, 1.1)
                     block_liters = min(block_liters, inventory[ft])
+
                     if block_liters > 0:
                         ts = datetime.combine(current_date, datetime.min.time().replace(
                             hour=block_hour, minute=random.randint(0, 59)
                         ))
                         tx = FuelTransaction(
-                            station_id=station.id, fuel_type=ft,
-                            transaction_type="sold", liters=round(block_liters, 1),
+                            station_id=station.id,
+                            fuel_type=ft,
+                            transaction_type="sold",
+                            liters=round(block_liters, 1),
                             price_per_liter={"magna": 18.85, "premium": 20.60, "diesel": 22.50}[ft],
                             timestamp=ts,
                             source="web",
@@ -270,7 +269,8 @@ def seed_database():
 
                 # End-of-day snapshot
                 snap = InventorySnapshot(
-                    station_id=station.id, fuel_type=ft,
+                    station_id=station.id,
+                    fuel_type=ft,
                     liters_on_hand=round(inventory[ft], 1),
                     capacity=cap,
                     snapshot_date=current_date,

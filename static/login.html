@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ControlPetro — Iniciar Sesion</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #0A1628;
+    --navy-light: #111D33;
+    --navy-card: #162036;
+    --teal: #0D9488;
+    --teal-dark: #0B7C72;
+    --orange: #F97316;
+    --pink: #EC4899;
+    --white: #FFFFFF;
+    --gray-300: #D1D5DB;
+    --gray-400: #9CA3AF;
+    --gray-500: #6B7280;
+    --red: #EF4444;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--navy);
+    color: var(--white);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .login-container {
+    width: 100%;
+    max-width: 420px;
+    padding: 20px;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 40px;
+  }
+
+  .logo img {
+    height: 40px;
+    width: auto;
+    object-fit: contain;
+  }
+
+  .logo span {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--white);
+  }
+
+  .card {
+    background: var(--navy-card);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 36px 32px;
+  }
+
+  .card h2 {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    text-align: center;
+  }
+
+  .card .subtitle {
+    color: var(--gray-400);
+    font-size: 14px;
+    text-align: center;
+    margin-bottom: 28px;
+  }
+
+  .tabs {
+    display: flex;
+    background: var(--navy);
+    border-radius: 10px;
+    padding: 4px;
+    margin-bottom: 28px;
+  }
+
+  .tab {
+    flex: 1;
+    padding: 10px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--gray-400);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+    background: transparent;
+  }
+
+  .tab.active {
+    background: var(--teal);
+    color: var(--white);
+  }
+
+  .form-group {
+    margin-bottom: 18px;
+  }
+
+  .form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gray-300);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .form-group input {
+    width: 100%;
+    padding: 12px 14px;
+    background: var(--navy);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 10px;
+    color: var(--white);
+    font-size: 15px;
+    font-family: inherit;
+    transition: border-color 0.2s;
+    outline: none;
+  }
+
+  .form-group input:focus {
+    border-color: var(--teal);
+  }
+
+  .form-group input::placeholder {
+    color: var(--gray-500);
+  }
+
+  .error-msg {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #FCA5A5;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-bottom: 18px;
+    display: none;
+  }
+
+  .success-msg {
+    background: rgba(13, 148, 136, 0.15);
+    border: 1px solid rgba(13, 148, 136, 0.3);
+    color: #5EEAD4;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-bottom: 18px;
+    display: none;
+  }
+
+  .btn-primary {
+    width: 100%;
+    padding: 13px;
+    background: var(--teal);
+    color: var(--white);
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.2s;
+    margin-top: 4px;
+  }
+
+  .btn-primary:hover {
+    background: var(--teal-dark);
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .footer-link {
+    text-align: center;
+    margin-top: 24px;
+    font-size: 13px;
+    color: var(--gray-400);
+  }
+
+  .footer-link a {
+    color: var(--teal);
+    text-decoration: none;
+    font-weight: 600;
+  }
+
+  .footer-link a:hover {
+    text-decoration: underline;
+  }
+
+  .demo-link {
+    text-align: center;
+    margin-top: 16px;
+    font-size: 13px;
+  }
+
+  .demo-link a {
+    color: var(--orange);
+    text-decoration: none;
+    font-weight: 500;
+  }
+
+  .demo-link a:hover {
+    text-decoration: underline;
+  }
+
+  .hidden { display: none; }
+
+  /* Loading spinner */
+  .spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: var(--white);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Powered by footer */
+  .powered-by {
+    text-align: center;
+    margin-top: 32px;
+    font-size: 12px;
+    color: var(--gray-500);
+  }
+</style>
+</head>
+<body>
+
+<div class="login-container">
+  <div class="logo">
+    <img src="https://drive.google.com/thumbnail?id=1U4b_we3RXomMkBELS8oZ1jYvJqT5s6B3&sz=w400" alt="ControlPetro">
+    <span>ControlPetro</span>
+  </div>
+
+  <div class="card">
+    <h2 id="card-title">Iniciar Sesion</h2>
+    <p class="subtitle" id="card-subtitle">Ingresa tus credenciales para acceder al dashboard</p>
+
+    <div class="tabs">
+      <button class="tab active" id="tab-login" onclick="showLogin()">Iniciar Sesion</button>
+      <button class="tab" id="tab-register" onclick="showRegister()">Registrarse</button>
+    </div>
+
+    <div id="error-box" class="error-msg"></div>
+    <div id="success-box" class="success-msg"></div>
+
+    <!-- Login Form -->
+    <form id="login-form" onsubmit="handleLogin(event)">
+      <div class="form-group">
+        <label for="login-username">Usuario</label>
+        <input type="text" id="login-username" placeholder="tu.usuario" autocomplete="username" required>
+      </div>
+      <div class="form-group">
+        <label for="login-password">Contrasena</label>
+        <input type="password" id="login-password" placeholder="Tu contrasena" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="btn-primary" id="login-btn">Iniciar Sesion</button>
+    </form>
+
+    <!-- Register Form -->
+    <form id="register-form" class="hidden" onsubmit="handleRegister(event)">
+      <div class="form-group">
+        <label for="reg-username">Usuario</label>
+        <input type="text" id="reg-username" placeholder="tu.usuario" autocomplete="username" required minlength="3">
+      </div>
+      <div class="form-group">
+        <label for="reg-name">Nombre completo</label>
+        <input type="text" id="reg-name" placeholder="Juan Perez" autocomplete="name" required>
+      </div>
+      <div class="form-group">
+        <label for="reg-phone">Telefono WhatsApp (opcional)</label>
+        <input type="tel" id="reg-phone" placeholder="+52 656 123 4567" autocomplete="tel">
+      </div>
+      <div class="form-group">
+        <label for="reg-email">Email (opcional)</label>
+        <input type="email" id="reg-email" placeholder="tu@email.com" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label for="reg-password">Contrasena</label>
+        <input type="password" id="reg-password" placeholder="Minimo 8 caracteres" autocomplete="new-password" required minlength="8">
+      </div>
+      <button type="submit" class="btn-primary" id="register-btn">Crear cuenta</button>
+    </form>
+  </div>
+
+  <div class="demo-link">
+    <a href="/demo">Ver demo sin cuenta &rarr;</a>
+  </div>
+
+  <div class="powered-by">
+    Hecho en Ciudad Juarez, Chihuahua
+  </div>
+</div>
+
+<script>
+const API = '';
+
+// Check if already logged in
+const token = localStorage.getItem('cp_token');
+if (token) {
+  // Verify token is still valid
+  fetch(API + '/api/auth/me', {
+    headers: { 'Authorization': 'Bearer ' + token }
+  }).then(r => {
+    if (r.ok) window.location.href = '/';
+  }).catch(() => {});
+}
+
+function showLogin() {
+  document.getElementById('tab-login').classList.add('active');
+  document.getElementById('tab-register').classList.remove('active');
+  document.getElementById('login-form').classList.remove('hidden');
+  document.getElementById('register-form').classList.add('hidden');
+  document.getElementById('card-title').textContent = 'Iniciar Sesion';
+  document.getElementById('card-subtitle').textContent = 'Ingresa tus credenciales para acceder al dashboard';
+  clearMessages();
+}
+
+function showRegister() {
+  document.getElementById('tab-register').classList.add('active');
+  document.getElementById('tab-login').classList.remove('active');
+  document.getElementById('register-form').classList.remove('hidden');
+  document.getElementById('login-form').classList.add('hidden');
+  document.getElementById('card-title').textContent = 'Crear cuenta';
+  document.getElementById('card-subtitle').textContent = 'Registrate para acceder a tu estacion';
+  clearMessages();
+}
+
+function showError(msg) {
+  const box = document.getElementById('error-box');
+  box.textContent = msg;
+  box.style.display = 'block';
+  document.getElementById('success-box').style.display = 'none';
+}
+
+function showSuccess(msg) {
+  const box = document.getElementById('success-box');
+  box.textContent = msg;
+  box.style.display = 'block';
+  document.getElementById('error-box').style.display = 'none';
+}
+
+function clearMessages() {
+  document.getElementById('error-box').style.display = 'none';
+  document.getElementById('success-box').style.display = 'none';
+}
+
+async function handleLogin(e) {
+  e.preventDefault();
+  clearMessages();
+
+  const btn = document.getElementById('login-btn');
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+
+  if (!username || !password) {
+    showError('Ingresa tu usuario y contrasena.');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Verificando...';
+
+  try {
+    const res = await fetch(API + '/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      showError(data.error || 'Error al iniciar sesion.');
+      btn.disabled = false;
+      btn.textContent = 'Iniciar Sesion';
+      return;
+    }
+
+    // Save token and user data
+    localStorage.setItem('cp_token', data.token);
+    localStorage.setItem('cp_user', JSON.stringify(data.user));
+
+    showSuccess('Bienvenido, ' + data.user.name + '!');
+
+    // Redirect to dashboard
+    setTimeout(() => {
+      window.location.href = '/';
+    }, 500);
+
+  } catch (err) {
+    showError('Error de conexion. Intenta de nuevo.');
+    btn.disabled = false;
+    btn.textContent = 'Iniciar Sesion';
+  }
+}
+
+async function handleRegister(e) {
+  e.preventDefault();
+  clearMessages();
+
+  const btn = document.getElementById('register-btn');
+  const username = document.getElementById('reg-username').value.trim();
+  const name = document.getElementById('reg-name').value.trim();
+  const phone = document.getElementById('reg-phone').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
+  const password = document.getElementById('reg-password').value;
+
+  if (!username || !name || !password) {
+    showError('Usuario, nombre y contrasena son requeridos.');
+    return;
+  }
+
+  if (username.length < 3) {
+    showError('El usuario debe tener al menos 3 caracteres.');
+    return;
+  }
+
+  if (password.length < 8) {
+    showError('La contrasena debe tener al menos 8 caracteres.');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Creando cuenta...';
+
+  try {
+    const body = { username, name, password };
+    if (phone) body.phone = phone;
+    if (email) body.email = email;
+
+    const res = await fetch(API + '/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      showError(data.error || 'Error al crear cuenta.');
+      btn.disabled = false;
+      btn.textContent = 'Crear cuenta';
+      return;
+    }
+
+    // Save token and user data
+    localStorage.setItem('cp_token', data.token);
+    localStorage.setItem('cp_user', JSON.stringify(data.user));
+
+    showSuccess(data.message || 'Cuenta creada exitosamente!');
+
+    // Redirect to dashboard
+    setTimeout(() => {
+      window.location.href = '/';
+    }, 1500);
+
+  } catch (err) {
+    showError('Error de conexion. Intenta de nuevo.');
+    btn.disabled = false;
+    btn.textContent = 'Crear cuenta';
+  }
+}
+</script>
+
+</body>
+</html>

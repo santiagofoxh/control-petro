@@ -1,20 +1,24 @@
-"""Control Petro v2 â AI platform for Mexican petroleum distributors.
+"""Control Petro v2 - AI platform for Mexican petroleum distributors.
 
 Now with multi-tenant auth, organization hierarchy, and OpenClaw integration.
 """
+
 import os
 import json
 from datetime import datetime, date, timedelta
+
 from flask import Flask, jsonify, request, send_from_directory, send_file, abort, g
 
 from database import (
-    db, Station, FuelTransaction, InventorySnapshot, Report, Prediction,
-    Organization, RazonSocial, User,
+    db, Station, FuelTransaction, InventorySnapshot,
+    Report, Prediction, Organization, RazonSocial, User,
 )
 from auth import (
-    require_auth, optional_auth, require_role, hash_password, verify_password,
-    create_token, get_accessible_station_ids, get_accessible_razon_ids,
+    require_auth, optional_auth, require_role,
+    hash_password, verify_password, create_token,
+    get_accessible_station_ids, get_accessible_razon_ids,
 )
+
 import reports
 import predictions
 import sat_xml_generator
@@ -22,7 +26,21 @@ import sat_xml_generator
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
-app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{os.path.join(BASE_DIR, 'controlpetro.db')}"
+
+# ------------------------------------------------------------------ #
+# Database configuration: PostgreSQL (Render) or SQLite (local dev)
+# ------------------------------------------------------------------ #
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+
+if DATABASE_URL:
+    # Render provides postgres:// but SQLAlchemy needs postgresql://
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
+else:
+    # Fallback to SQLite for local development
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{os.path.join(BASE_DIR, 'controlpetro.db')}"
+
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["JSON_SORT_KEYS"] = False
 
@@ -34,14 +52,21 @@ app.register_blueprint(ingest_bp)
 
 
 # ------------------------------------------------------------------ #
-#  Serve frontend (public â no auth)
+# Serve frontend - routing based on subdomain/host
 # ------------------------------------------------------------------ #
+
+# Hosts that serve the authenticated app (not the landing page)
+APP_HOSTS = {"app.controlpetro.com", "control-petro.onrender.com"}
+
+
 @app.route("/")
 def index():
     """Serve landing page or app based on subdomain."""
     host = request.host.split(":")[0]
-    if host == "app.controlpetro.com":
+    if host in APP_HOSTS:
+        # App domain: redirect to login if no token, otherwise serve dashboard
         return send_from_directory("static", "index.html")
+    # Landing page domain (controlpetro.com, localhost, etc.)
     return send_from_directory("static", "landing.html")
 
 
@@ -50,25 +75,32 @@ def demo():
     return send_from_directory("static", "index.html")
 
 
+@app.route("/login")
+def login_page():
+    """Serve login page for the authenticated app."""
+    return send_from_directory("static", "login.html")
+
+
 @app.route("/static/<path:path>")
 def serve_static(path):
     return send_from_directory("static", path)
 
 
 # ------------------------------------------------------------------ #
-#  Auth: Login, Register, Profile
+# Auth: Login, Register, Profile
 # ------------------------------------------------------------------ #
+
 @app.route("/api/auth/login", methods=["POST"])
 def api_login():
-    """Authenticate user and return JWT token."""
+    """Authenticate user with username + password and return JWT token."""
     data = request.json or {}
-    email = data.get("email", "").strip().lower()
+    username = data.get("username", "").strip()
     password = data.get("password", "")
 
-    if not email or not password:
-        return jsonify({"error": "Email y contrasena requeridos."}), 400
+    if not username or not password:
+        return jsonify({"error": "Usuario y contrasena requeridos."}), 400
 
-    user = User.query.filter_by(email=email).first()
+    user = User.query.filter_by(username=username).first()
     if not user or not verify_password(password, user.password_hash):
         return jsonify({"error": "Credenciales incorrectas."}), 401
 
@@ -83,7 +115,7 @@ def api_login():
         "token": token,
         "user": {
             "id": user.id,
-            "email": user.email,
+            "username": user.username,
             "name": user.name,
             "role": user.role,
             "organization_id": user.organization_id,
@@ -97,21 +129,29 @@ def api_login():
 def api_register():
     """Register a new operator account (pending admin approval for elevated access)."""
     data = request.json or {}
-    email = data.get("email", "").strip().lower()
+    username = data.get("username", "").strip()
     password = data.get("password", "")
     name = data.get("name", "").strip()
     phone = data.get("phone", "").strip()
+    email = data.get("email", "").strip().lower() or None
 
-    if not email or not password or not name:
-        return jsonify({"error": "Nombre, email y contrasena requeridos."}), 400
+    if not username or not password or not name:
+        return jsonify({"error": "Usuario, nombre y contrasena requeridos."}), 400
+
+    if len(username) < 3:
+        return jsonify({"error": "El usuario debe tener al menos 3 caracteres."}), 400
 
     if len(password) < 8:
         return jsonify({"error": "Contrasena debe tener al menos 8 caracteres."}), 400
 
-    if User.query.filter_by(email=email).first():
+    if User.query.filter_by(username=username).first():
+        return jsonify({"error": "Este usuario ya esta registrado."}), 409
+
+    if email and User.query.filter_by(email=email).first():
         return jsonify({"error": "Este email ya esta registrado."}), 409
 
     user = User(
+        username=username,
         email=email,
         password_hash=hash_password(password),
         name=name,
@@ -127,7 +167,7 @@ def api_register():
         "token": token,
         "user": {
             "id": user.id,
-            "email": user.email,
+            "username": user.username,
             "name": user.name,
             "role": user.role,
             "approved": user.approved_by_admin,
@@ -146,6 +186,7 @@ def api_me():
 
     result = {
         "id": user.id,
+        "username": user.username,
         "email": user.email,
         "name": user.name,
         "phone": user.phone,
@@ -170,8 +211,9 @@ def api_me():
 
 
 # ------------------------------------------------------------------ #
-#  Admin: User Management
+# Admin: User Management
 # ------------------------------------------------------------------ #
+
 @app.route("/api/admin/users")
 @require_auth
 @require_role("platform_admin", "org_admin")
@@ -179,13 +221,12 @@ def api_list_users():
     """List users (filtered by org for org_admin)."""
     user = g.current_user
     query = User.query
-
     if user and user.role == "org_admin":
         query = query.filter_by(organization_id=user.organization_id)
-
     users = query.order_by(User.created_at.desc()).all()
     return jsonify([{
         "id": u.id,
+        "username": u.username,
         "email": u.email,
         "name": u.name,
         "phone": u.phone,
@@ -240,8 +281,9 @@ def api_update_user(user_id):
 
 
 # ------------------------------------------------------------------ #
-#  Admin: Organizations & Razones Sociales
+# Admin: Organizations & Razones Sociales
 # ------------------------------------------------------------------ #
+
 @app.route("/api/admin/organizations")
 @require_auth
 @require_role("platform_admin")
@@ -264,13 +306,10 @@ def api_create_organization():
     data = request.json or {}
     name = data.get("name", "").strip()
     slug = data.get("slug", "").strip().lower().replace(" ", "-")
-
     if not name or not slug:
         return jsonify({"error": "Nombre y slug requeridos."}), 400
-
     if Organization.query.filter_by(slug=slug).first():
         return jsonify({"error": "Ese slug ya existe."}), 409
-
     org = Organization(name=name, slug=slug)
     db.session.add(org)
     db.session.commit()
@@ -283,10 +322,8 @@ def api_create_organization():
 def api_list_razones():
     user = g.current_user
     query = RazonSocial.query
-
     if user and user.role == "org_admin":
         query = query.filter_by(organization_id=user.organization_id)
-
     razones = query.order_by(RazonSocial.name).all()
     return jsonify([{
         "id": r.id,
@@ -307,19 +344,14 @@ def api_create_razon():
     org_id = data.get("organization_id")
     name = data.get("name", "").strip()
     rfc = data.get("rfc", "").strip().upper()
-
     if not name or not rfc or not org_id:
         return jsonify({"error": "organization_id, nombre y RFC requeridos."}), 400
-
     # org_admin can only create in their org
     if g.current_user and g.current_user.role == "org_admin":
         if org_id != g.current_user.organization_id:
             return jsonify({"error": "No puedes crear grupos en otra organizacion."}), 403
-
     razon = RazonSocial(
-        organization_id=org_id,
-        name=name,
-        rfc=rfc,
+        organization_id=org_id, name=name, rfc=rfc,
         legal_name=data.get("legal_name", ""),
     )
     db.session.add(razon)
@@ -328,15 +360,15 @@ def api_create_razon():
 
 
 # ------------------------------------------------------------------ #
-#  API: Dashboard (now scope-filtered)
+# API: Dashboard (now scope-filtered)
 # ------------------------------------------------------------------ #
+
 @app.route("/api/dashboard")
 @optional_auth
 def api_dashboard():
     today = date.today()
     start = datetime.combine(today, datetime.min.time())
     end = datetime.combine(today, datetime.max.time())
-
     station_ids = get_accessible_station_ids()
 
     # Total liters sold today (scoped)
@@ -376,7 +408,6 @@ def api_dashboard():
     if station_ids:
         yq = yq.filter(FuelTransaction.station_id.in_(station_ids))
     yesterday_sold = yq.scalar()
-
     change_pct = ((float(total_sold) - float(yesterday_sold)) / float(yesterday_sold) * 100) if yesterday_sold else 0
 
     # Station counts by alert level (scoped)
@@ -384,6 +415,7 @@ def api_dashboard():
     critical_count = 0
     low_count = 0
     normal_count = 0
+
     for station in stations:
         worst = 100
         for ft in ["magna", "premium", "diesel"]:
@@ -432,6 +464,7 @@ def api_sales_chart():
     days = request.args.get("days", 7, type=int)
     today = date.today()
     station_ids = get_accessible_station_ids()
+
     result = []
     for d in range(days - 1, -1, -1):
         target = today - timedelta(days=d)
@@ -451,12 +484,14 @@ def api_sales_chart():
             day_data[ft] = float(fq.scalar())
         day_data["total"] = day_data["magna"] + day_data["premium"] + day_data["diesel"]
         result.append(day_data)
+
     return jsonify(result)
 
 
 # ------------------------------------------------------------------ #
-#  API: Stations (scope-filtered)
+# API: Stations (scope-filtered)
 # ------------------------------------------------------------------ #
+
 @app.route("/api/stations")
 @optional_auth
 def api_stations():
@@ -493,15 +528,20 @@ def api_stations():
         ).first()
 
         status = "normal" if worst_pct > 40 else ("low" if worst_pct > 25 else "critical")
+
         result.append({
-            "id": s.id, "code": s.code, "name": s.name,
-            "address": s.address, "city": s.city,
+            "id": s.id,
+            "code": s.code,
+            "name": s.name,
+            "address": s.address,
+            "city": s.city,
             "razon_social_id": s.razon_social_id,
             "levels": levels,
             "today_sold": float(today_sold),
             "sat_compliant": has_report is not None,
             "status": status,
         })
+
     return jsonify(result)
 
 
@@ -524,8 +564,11 @@ def api_station_detail(station_id):
         levels[ft] = {"liters": round(liters, 0), "capacity": cap, "pct": round(liters/cap*100, 1) if cap > 0 else 0}
 
     return jsonify({
-        "id": station.id, "code": station.code, "name": station.name,
-        "address": station.address, "city": station.city,
+        "id": station.id,
+        "code": station.code,
+        "name": station.name,
+        "address": station.address,
+        "city": station.city,
         "razon_social_id": station.razon_social_id,
         "levels": levels,
         "magna_capacity": station.magna_capacity,
@@ -535,14 +578,16 @@ def api_station_detail(station_id):
 
 
 # ------------------------------------------------------------------ #
-#  API: Inventory (scope-filtered)
+# API: Inventory (scope-filtered)
 # ------------------------------------------------------------------ #
+
 @app.route("/api/inventory/summary")
 @optional_auth
 def api_inventory_summary():
     today = date.today()
     station_ids = get_accessible_station_ids()
     summary = {"magna": 0, "premium": 0, "diesel": 0, "total_capacity": {"magna": 0, "premium": 0, "diesel": 0}}
+
     stations = Station.query.filter(Station.id.in_(station_ids)).all() if station_ids else []
     for s in stations:
         for ft in ["magna", "premium", "diesel"]:
@@ -562,6 +607,7 @@ def api_inventory_history():
     days = request.args.get("days", 7, type=int)
     today = date.today()
     station_ids = get_accessible_station_ids()
+
     result = []
     for d in range(days - 1, -1, -1):
         target = today - timedelta(days=d)
@@ -601,6 +647,7 @@ def api_inventory_history():
             "on_hand": round(on_hand, 0),
             "net": round(received - sold, 0),
         })
+
     return jsonify(result)
 
 
@@ -664,8 +711,9 @@ def api_record_transaction():
 
 
 # ------------------------------------------------------------------ #
-#  API: Reports (scope-filtered)
+# API: Reports (scope-filtered)
 # ------------------------------------------------------------ #
+
 @app.route("/api/reports/generate", methods=["POST"])
 @require_auth
 def api_generate_report():
@@ -680,6 +728,7 @@ def api_generate_report():
         "inventory_close": reports.generate_inventory_close,
         "price_tariff": reports.generate_price_report,
     }
+
     gen = generators.get(report_type)
     if not gen:
         return jsonify({"error": f"Unknown report type: {report_type}"}), 400
@@ -718,23 +767,26 @@ def api_send_report(report_id):
 def api_generate_all_reports():
     target_date_str = (request.json or {}).get("date")
     target_date = date.fromisoformat(target_date_str) if target_date_str else date.today()
+
     results = {}
     for rtype, gen in [
         ("sat_volumetric", reports.generate_sat_volumetric),
         ("cne_weekly", reports.generate_cne_weekly),
-        ("inventory_close". reports.generate_inventory_close),
+        ("inventory_close", reports.generate_inventory_close),
         ("price_tariff", reports.generate_price_report),
     ]:
         try:
             results[rtype] = gen(target_date)
         except Exception as e:
             results[rtype] = {"error": str(e)}
+
     return jsonify(results)
 
 
 # ------------------------------------------------------------------ #
-#  API: Predictions (scope-filtered)
+# API: Predictions (scope-filtered)
 # ------------------------------------------------------------------ #
+
 @app.route("/api/predictions/recommendations")
 @optional_auth
 def api_recommendations():
@@ -761,13 +813,16 @@ def api_station_prediction(station_id, fuel_type):
 
     demand = predictions.predict_demand(station_id, fuel_type)
     inv = predictions.get_current_inventory(station_id, fuel_type)
+
     if not demand:
         return jsonify({"error": "Insufficient data"}), 400
+
     station = Station.query.get_or_404(station_id)
     cap = getattr(station, f"{fuel_type}_capacity", 40000)
     days_left = predictions.calculate_days_until_empty(
         inv["liters"] if inv else 0, demand["avg_daily"], 0.15, cap
     ) if inv else None
+
     return jsonify({
         "station": {"id": station.id, "code": station.code, "name": station.name},
         "fuel_type": fuel_type,
@@ -778,8 +833,9 @@ def api_station_prediction(station_id, fuel_type):
 
 
 # ------------------------------------------------------------------ #
-#  API: Alerts (scope-filtered)
+# API: Alerts (scope-filtered)
 # ------------------------------------------------------------------ #
+
 @app.route("/api/alerts")
 @optional_auth
 def api_alerts():
@@ -834,14 +890,14 @@ def api_alerts():
 
 
 # ------------------------------------------------------------------ #
-#  API: SAT XML Generator (AI-powered)
+# API: SAT XML Generator (AI-powered)
 # ------------------------------------------------------------------ #
+
 @app.route("/api/sat-xml/extract", methods=["POST"])
 @require_auth
 def api_extract_from_file():
     if 'file' not in request.files:
         return jsonify({"error": "No se envio ningun archivo."}), 400
-
     file = request.files['file']
     if not file.filename:
         return jsonify({"error": "Archivo sin nombre."}), 400
@@ -856,10 +912,8 @@ def api_extract_from_file():
         return jsonify({"error": "Archivo demasiado grande. Maximo 10MB."}), 400
 
     result = sat_xml_generator.extract_data_from_file(file_bytes, file.filename)
-
     if result.get("error"):
         return jsonify(result), 500 if "API error" in result.get("error", "") else 400
-
     return jsonify(result)
 
 
@@ -867,7 +921,6 @@ def api_extract_from_file():
 @require_auth
 def api_generate_sat_xml():
     data = request.json or {}
-
     station_config = {
         "rfc": data.get("rfc", "GAZ850101ABC"),
         "rfc_proveedor": data.get("rfc_proveedor", "XAXX010101000"),
@@ -889,7 +942,6 @@ def api_generate_sat_xml():
     report_date = date.fromisoformat(report_date_str) if report_date_str else date.today()
 
     result = sat_xml_generator.generate_sat_xml_with_ai(station_config, raw_data, report_date)
-
     if result.get("error"):
         return jsonify(result), 500 if "API error" in result["error"] else 400
 
@@ -923,7 +975,6 @@ def api_generate_sat_xml_from_db():
     report_date = date.fromisoformat(report_date_str) if report_date_str else date.today()
 
     result = sat_xml_generator.generate_demo_xml(report_date)
-
     if result.get("error"):
         return jsonify(result), 500 if "API error" in result.get("error", "") else 400
 
@@ -956,15 +1007,15 @@ def api_download_sat_xml(report_id):
     if not report.file_path or not os.path.exists(report.file_path):
         abort(404)
     return send_file(
-        report.file_path,
-        as_attachment=True,
+        report.file_path, as_attachment=True,
         download_name=os.path.basename(report.file_path),
     )
 
 
 # ------------------------------------------------------------------ #
-#  API: OpenClaw Webhook (receives push events)
+# API: OpenClaw Webhook (receives push events)
 # ------------------------------------------------------------------ #
+
 @app.route("/api/webhook/openclaw", methods=["POST"])
 @require_auth
 def api_openclaw_webhook():
@@ -996,7 +1047,9 @@ def api_openclaw_webhook():
         total = float(sq.scalar())
 
         return jsonify({
-            "text": f"Resumen del dia ({today.isoformat()}):\nLitros vendidos: {total:,.0f}\nEstaciones activas: {len(station_ids)}",
+            "text": f"Resumen del dia ({today.isoformat()}):
+Litros vendidos: {total:,.0f}
+Estaciones activas: {len(station_ids)}",
             "total_sold": total,
             "station_count": len(station_ids),
         })
@@ -1005,37 +1058,58 @@ def api_openclaw_webhook():
 
 
 # ------------------------------------------------------------------ #
-#  Health check (public)
+# Health check (public)
 # ------------------------------------------------------------------ #
+
 @app.route("/api/health")
 def api_health():
-    return jsonify({"status": "ok", "version": "2.0.0", "timestamp": datetime.utcnow().isoformat()})
+    return jsonify({"status": "ok", "version": "2.1.0", "timestamp": datetime.utcnow().isoformat()})
 
 
 # ------------------------------------------------------------------ #
-#  Initialize
+# Initialize
 # ------------------------------------------------------------------ #
+
 def init_db():
     with app.app_context():
-        db_path = os.path.join(BASE_DIR, "controlpetro.db")
-        if not os.path.exists(db_path):
-            print("Creating database...")
+        if DATABASE_URL:
+            # PostgreSQL: always run create_all to ensure tables exist
             db.create_all()
-            from seed_data import seed_database
-            seed_database()
-            print("Generating initial reports...")
-            reports.generate_sat_volumetric()
-            reports.generate_cne_weekly()
-            reports.generate_inventory_close()
-            reports.generate_price_report()
-            print("Database initialized with demo data and reports.")
+            # Check if we need to seed
+            if Station.query.count() == 0:
+                print("Empty PostgreSQL database. Seeding demo data...")
+                from seed_data import seed_database
+                seed_database()
+                print("Generating initial reports...")
+                reports.generate_sat_volumetric()
+                reports.generate_cne_weekly()
+                reports.generate_inventory_close()
+                reports.generate_price_report()
+                print("Database initialized with demo data and reports.")
+            else:
+                print("PostgreSQL database ready.")
         else:
-            # Run migrations for new tables if they don't exist
-            db.create_all()
-            print("Database ready. New tables created if needed.")
+            # SQLite: check if db file exists
+            db_path = os.path.join(BASE_DIR, "controlpetro.db")
+            if not os.path.exists(db_path):
+                print("Creating database...")
+                db.create_all()
+                from seed_data import seed_database
+                seed_database()
+                print("Generating initial reports...")
+                reports.generate_sat_volumetric()
+                reports.generate_cne_weekly()
+                reports.generate_inventory_close()
+                reports.generate_price_report()
+                print("Database initialized with demo data and reports.")
+            else:
+                # Run migrations for new tables if they don't exist
+                db.create_all()
+                print("Database ready. New tables created if needed.")
 
 
 init_db()
+
 if __name__ == "__main__":
     init_db()
     app.run(host="0.0.0.0", port=5000, debug=False)

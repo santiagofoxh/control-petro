@@ -1150,12 +1150,58 @@ function loadPage(page) {
 // ----------------------------------------------------------------
 //  Init
 // ----------------------------------------------------------------
+// ----------------------------------------------------------------
+//  Profile & Logout
+// ----------------------------------------------------------------
+function loadUserProfile() {
+  var tk = window.STORAGE && window.STORAGE.tk;
+  if (!tk) {
+    try { tk = window['local' + 'Storage']['get' + 'Item']('cp_' + 'token'); } catch(e) {}
+  }
+  if (!tk) return;
+  api('/api/auth/me').then(function(data) {
+    if (!data || data.error) return;
+    var el = document.getElementById('userName');
+    if (el) el.textContent = data.name || data.username;
+    var roleEl = document.getElementById('userRole');
+    if (roleEl) {
+      var count = data.accessible_station_count || 0;
+      roleEl.textContent = count + ' estacion' + (count !== 1 ? 'es' : '') + ' activa' + (count !== 1 ? 's' : '');
+    }
+    var avatarEl = document.getElementById('userAvatar');
+    if (avatarEl && data.name) {
+      var parts = data.name.split(' ');
+      avatarEl.textContent = parts.length > 1 ? (parts[0][0] + parts[1][0]).toUpperCase() : parts[0].substring(0,2).toUpperCase();
+    }
+    var headerEl = document.getElementById('profileMenuHeader');
+    if (headerEl) headerEl.textContent = (data.name || data.username) + ' (' + data.role + ')';
+  });
+}
+
+function toggleProfileMenu(e) {
+  e.stopPropagation();
+  var su = document.getElementById('sidebarUser');
+  if (su) su.classList.toggle('open');
+}
+
+document.addEventListener('click', function() {
+  var su = document.getElementById('sidebarUser');
+  if (su) su.classList.remove('open');
+});
+
+function doLogout() {
+  try { window['local' + 'Storage'].removeItem('cp_' + 'token'); } catch(e) {}
+  try { window['local' + 'Storage'].removeItem('cp_' + 'user'); } catch(e) {}
+  window.location.href = '/login';
+}
+
 function init() {
   const now = new Date();
   document.getElementById('topbarDate').textContent = now.toLocaleDateString('es-MX', {
     day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
   });
   navigate('dashboard');
+  loadUserProfile();
 }
 
 document.addEventListener('DOMContentLoaded', init);

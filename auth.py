@@ -188,7 +188,7 @@ def require_role(*allowed_roles):
                 return jsonify({"error": "No autorizado."}), 403
 
             if role not in allowed_roles:
-                return jsonify({"error": f"Rol '{role}' no tiene acceso. Roles permitidos: {}, ".join(allowed_roles)}"}), 403
+                return jsonify({"error": "Rol '" + role + "' no tiene acceso. Roles permitidos: " + ", ".join(allowed_roles)}), 403
             return f(*args, **kwargs)
         return decorated
     return decorator

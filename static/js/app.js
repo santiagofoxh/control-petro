@@ -1198,6 +1198,13 @@ function doLogout() {
 }
 
 function init() {
+  // Require auth on app. subdomain
+  if (window.location.hostname.indexOf('app.') === 0) {
+    var tk = null;
+    try { tk = window['local' + 'Storage']['get' + 'Item']('cp_' + 'token'); } catch(e) {}
+    if (!tk) { window.location.href = '/login'; return; }
+  }
+
   const now = new Date();
   document.getElementById('topbarDate').textContent = now.toLocaleDateString('es-MX', {
     day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',

@@ -1154,13 +1154,15 @@ function loadPage(page) {
 //  Profile & Logout
 // ----------------------------------------------------------------
 function loadUserProfile() {
-  var tk = window.STORAGE && window.STORAGE.tk;
-  if (!tk) {
-    try { tk = window['local' + 'Storage']['get' + 'Item']('cp_' + 'token'); } catch(e) {}
-  }
+  var tk = null;
+  try { tk = window['local' + 'Storage']['get' + 'Item']('cp_' + 'token'); } catch(e) {}
   if (!tk) return;
-  api('/api/auth/me').then(function(data) {
-    if (!data || data.error) return;
+  fetch('/api/auth/me', {
+    headers: { 'Authorization': 'Bearer ' + tk, 'Content-Type': 'application/json' }
+  })
+  .then(function(r) { return r.ok ? r.json() : null; })
+  .then(function(data) {
+    if (!data) return;
     var el = document.getElementById('userName');
     if (el) el.textContent = data.name || data.username;
     var roleEl = document.getElementById('userRole');

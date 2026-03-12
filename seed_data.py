@@ -85,6 +85,16 @@ USERS = [
         "stations": ["GP-K20"],
         "approved": False,
     },
+    {
+        "username": "demogazpro",
+        "email": "demo@gazpro.mx",
+        "password": "demogazpro",
+        "name": "Demo GazPro",
+        "phone": "+526561000099",
+        "role": "org_admin",
+        "razon": None,
+        "approved": True,
+    },
 ]
 
 STATIONS = [

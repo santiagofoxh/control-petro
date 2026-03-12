@@ -1047,9 +1047,7 @@ def api_openclaw_webhook():
         total = float(sq.scalar())
 
         return jsonify({
-            "text": f"Resumen del dia ({today.isoformat()}):
-Litros vendidos: {total:,.0f}
-Estaciones activas: {len(station_ids)}",
+            "text": f"Resumen del dia ({today.isoformat()}):\nLitros vendidos: {total:,.0f}\nEstaciones activas: {len(station_ids)}",
             "total_sold": total,
             "station_count": len(station_ids),
         })

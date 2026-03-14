@@ -74,6 +74,10 @@ def index():
 def demo():
     return send_from_directory("static", "index.html")
 
+@app.route("/article")
+def article():
+    return send_from_directory("static", "article.html")
+
 
 @app.route("/login")
 def login_page():

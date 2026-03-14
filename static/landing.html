@@ -815,6 +815,85 @@
     footer { padding: 60px 20px 30px; }
     .footer-top { grid-template-columns: 1fr 1fr; }
   }
+
+
+  /* Capacitacion Section */
+  .capacitacion-section {
+    padding: 100px 48px;
+    background: var(--white);
+    border-top: 1px solid var(--gray-200);
+  }
+  .capacitacion-container {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 64px;
+    align-items: center;
+  }
+  .capacitacion-img {
+    width: 100%;
+    border-radius: 16px;
+    object-fit: cover;
+    aspect-ratio: 4/3;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+  }
+  .capacitacion-content {}
+  .capacitacion-content .section-label { margin-bottom: 12px; }
+  .capacitacion-content .section-title {
+    font-size: 36px;
+    letter-spacing: -1px;
+    margin-bottom: 20px;
+  }
+  .capacitacion-content .section-desc {
+    margin-bottom: 32px;
+  }
+  .capacitacion-details {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    margin-bottom: 40px;
+  }
+  .capacitacion-detail {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  .capacitacion-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: rgba(13,148,136,0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .capacitacion-icon svg {
+    width: 22px;
+    height: 22px;
+    color: var(--teal);
+  }
+  .capacitacion-detail h4 {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--navy);
+    margin: 0 0 4px 0;
+  }
+  .capacitacion-detail p {
+    font-size: 15px;
+    color: var(--gray-600);
+    margin: 0;
+    line-height: 1.5;
+  }
+  @media (max-width: 768px) {
+    .capacitacion-container {
+      grid-template-columns: 1fr;
+      gap: 40px;
+    }
+    .capacitacion-section { padding: 60px 20px; }
+    .capacitacion-content .section-title { font-size: 28px; }
+  }
 </style>
 </head>
 <body>
@@ -1038,6 +1117,49 @@
 </section>
 
 <!-- ─── FOOTER ─── -->
+
+  <!-- Capacitacion Section -->
+  <section class="capacitacion-section" id="capacitacion">
+    <div class="capacitacion-container">
+      <img src="https://images.unsplash.com/photo-1531482615713-2afd69097998?w=800&q=80" alt="Capacitacion presencial ControlPetro" class="capacitacion-img" loading="lazy">
+      <div class="capacitacion-content">
+        <div class="section-label">Capacitacion</div>
+        <h2 class="section-title">Tu equipo listo desde el dia uno</h2>
+        <p class="section-desc">Nuestro equipo va directamente a tu estacion para capacitar a tus operadores y despachadores en el uso completo de la plataforma.</p>
+        <div class="capacitacion-details">
+          <div class="capacitacion-detail">
+            <div class="capacitacion-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+            </div>
+            <div>
+              <h4>Un dia por cada 10 empleados</h4>
+              <p>Sesiones practicas y enfocadas para que tu personal domine la app sin interrumpir la operacion.</p>
+            </div>
+          </div>
+          <div class="capacitacion-detail">
+            <div class="capacitacion-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"/></svg>
+            </div>
+            <div>
+              <h4>En tu estacion</h4>
+              <p>Nos trasladamos a tus instalaciones. Sin viajes ni logistica de tu parte.</p>
+            </div>
+          </div>
+          <div class="capacitacion-detail">
+            <div class="capacitacion-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 0 1-1.043 3.296 3.745 3.745 0 0 1-3.296 1.043A3.745 3.745 0 0 1 12 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 0 1-3.296-1.043 3.745 3.745 0 0 1-1.043-3.296A3.745 3.745 0 0 1 3 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 0 1 1.043-3.296 3.746 3.746 0 0 1 3.296-1.043A3.746 3.746 0 0 1 12 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 0 1 3.296 1.043 3.745 3.745 0 0 1 1.043 3.296A3.745 3.745 0 0 1 21 12Z"/></svg>
+            </div>
+            <div>
+              <h4>Soporte continuo</h4>
+              <p>Despues de la capacitacion, tu equipo tiene acceso a soporte directo por WhatsApp.</p>
+            </div>
+          </div>
+        </div>
+        <a href="#contacto" class="btn-primary" style="text-decoration:none; display:inline-block;">Contactar ventas &rsaquo;</a>
+      </div>
+    </div>
+  </section>
+
 <footer>
   <div class="footer-inner">
     <div class="footer-top">

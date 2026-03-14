@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ControlPetro - Artículos de Características</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --navy: #0A1628;
+            --navy-light: #1a2a44;
+            --teal: #0D9488;
+            --orange: #F97316;
+            --pink: #EC4899;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-400: #9ca3af;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--navy);
+            color: var(--gray-100);
+            line-height: 1.6;
+        }
+
+        /* Navigation Bar */
+        nav {
+            background-color: var(--navy-light);
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .nav-logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: -0.5px;
+        }
+
+        .nav-logo span {
+            color: var(--teal);
+        }
+
+        .nav-back {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--gray-100);
+            text-decoration: none;
+            font-size: 0.95rem;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .nav-back:hover {
+            color: var(--teal);
+        }
+
+        .nav-back-arrow {
+            font-size: 1.5rem;
+        }
+
+        /* Main Container */
+        main {
+            max-width: 850px;
+            margin: 0 auto;
+            padding: 3rem 2rem;
+        }
+
+        /* Article Header */
+        .article-header {
+            margin-bottom: 3rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 2rem;
+        }
+
+        .article-icon {
+            font-size: 3.5rem;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+
+        .article-title-section {
+            flex: 1;
+        }
+
+        .article-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 0.5rem;
+            line-height: 1.2;
+        }
+
+        .article-subtitle {
+            font-size: 1.1rem;
+            color: var(--gray-400);
+            font-weight: 500;
+        }
+
+        /* Article Content */
+        .article-content {
+            line-height: 1.8;
+        }
+
+        .article-content section {
+            margin-bottom: 2.5rem;
+        }
+
+        .article-content h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .section-emoji {
+            font-size: 1.5rem;
+        }
+
+        .article-content p {
+            color: var(--gray-200);
+            margin-bottom: 1rem;
+            font-size: 1.05rem;
+        }
+
+        .article-content ul {
+            list-style: none;
+            margin-left: 0;
+            margin-bottom: 1.5rem;
+        }
+
+        .article-content li {
+            color: var(--gray-200);
+            margin-bottom: 0.75rem;
+            padding-left: 1.5rem;
+            position: relative;
+            font-size: 1.05rem;
+        }
+
+        .article-content li:before {
+            content: "→";
+            position: absolute;
+            left: 0;
+            color: var(--teal);
+            font-weight: 600;
+        }
+
+        .highlight {
+            color: var(--teal);
+            font-weight: 600;
+        }
+
+        /* 404 Page */
+        .error-container {
+            max-width: 850px;
+            margin: 3rem auto;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .error-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+
+        .error-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 0.5rem;
+        }
+
+        .error-message {
+            font-size: 1.1rem;
+            color: var(--gray-400);
+            margin-bottom: 2rem;
+        }
+
+        .error-link {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            background-color: var(--teal);
+            color: #fff;
+            text-decoration: none;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            transition: background-color 0.2s;
+        }
+
+        .error-link:hover {
+            background-color: #0d7a74;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--gray-500);
+            font-size: 0.95rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            margin-top: 4rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            main {
+                padding: 2rem 1rem;
+            }
+
+            .article-header {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+                gap: 1.5rem;
+            }
+
+            .article-title {
+                font-size: 1.75rem;
+            }
+
+            .article-icon {
+                font-size: 3rem;
+            }
+
+            .article-content h2 {
+                flex-direction: column;
+                font-size: 1.25rem;
+            }
+
+            nav {
+                padding: 1rem;
+            }
+
+            .nav-logo {
+                font-size: 1.25rem;
+            }
+        }
+
+        /* Color variants */
+        .color-teal {
+            color: var(--teal);
+        }
+
+        .color-orange {
+            color: var(--orange);
+        }
+
+        .color-pink {
+            color: var(--pink);
+        }
+
+        .color-navy-light {
+            color: var(--navy-light);
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav>
+        <div class="nav-logo">Control<span>Petro</span></div>
+        <a href="/" class="nav-back">
+            <span class="nav-back-arrow">←</span>
+            <span>Regresar</span>
+        </a>
+    </nav>
+
+    <!-- Main Content -->
+    <main>
+        <div id="article-container"></div>
+    </main>
+
+    <!-- Footer -->
+    <footer>
+        © 2026 ControlPetro
+    </footer>
+
+    <script>
+        // Article data
+        const articles = {
+            whatsapp: {
+                title: "Ingesta por WhatsApp",
+                subtitle: "Captura automática de datos de combustibles",
+                icon: "⛽",
+                colorClass: "color-teal",
+                content: `
+                    <section>
+                        <h2><span class="section-emoji">📱</span> Captura sin complicaciones</h2>
+                        <p>ControlPetro permite a los operadores de gasolineras mexicanas capturar datos de remisiones y tickets de combustible de manera simple y directa. Solo necesitas <span class="highlight">enviar una foto por WhatsApp</span> y nuestro asistente AI "Loti" se encarga del resto.</p>
+                        <p>No requiere instalación de aplicaciones, no necesita capacitación especial. Cualquier operario con un teléfono inteligente puede usar WhatsApp para documentar sus movimientos de combustible de inmediato.</p>
+                    </section>
+
+                    <section>
+                        <h2><span class="section-emoji">🤖</span> Loti: Tu asistente inteligente</h2>
+                        <p>Loti es el asistente AI de ControlPetro que procesa automáticamente las imágenes enviadas. Utiliza <span class="highlight">tecnología de OCR y visión artificial</span> para extraer datos clave como:</p>
+                        <ul>
+                            <li>Número de remisión o folio</li>
+                            <li>Tipo de combustible (Magna, Premium, Diesel)</li>
+                            <li>Volumen y precio por litro</li>
+                            <li>Fecha y hora de la transacción</li>
+                            <li>Proveedor o distribuidor</li>
+                        </ul>
+                    </section>
+
+                    <section>
+                        <h2><span class="section-emoji">✅</span> Registro automático en el dashboard</h2>
+                        <p>Una vez que Loti extrae los datos, estos se registran automáticamente en tu dashboard centralizado sin necesidad de tipeo manual. Los operarios se ahorran tiempo valioso que pueden dedicar a operaciones en la estación.</p>
+                        <p>Cada registro incluye la foto original como respaldo, permitiendo auditoría y trazabilidad completa de todas las transacciones.</p>
+                    </section>
+
+                    <section>
+                        <h2><span class="section-emoji">🔄</span> Detección de duplicados</h2>
+                        <p>El sistema verifica automáticamente si una remisión ya ha sido registrada, evitando <span class="highlight">doble ingreso de datos</span>. Esto previene errores contables y mantiene la integridad de tus registros.</p>
+                        <p>Si Loti detecta una posible duplicación, genera una alerta para que el operario pueda revisarla y confirmar antes de registrar.</p>
+                    </section>
+
+                    <section>
+                        <h2><span class="section-emoji">🎯</span> Flexibilidad total</h2>
+                        <p>El sistema soporta múltiples formatos de documentos:</p>
+                        <ul>
+                            <li>Remisiones de distribuidores</li>
+                            <li>Tickets de facturación</li>
+                            <li>Recibos de compra</li>
+                            <li>Fotos de documentos de diferente calidad y ángulo</li>
+                        </ul>
+                        <p>Loti está entrenado para procesar imágenes en diferentes condiciones de luz, tamaño y orientación, asegurando máxima precisión en la extracción de datos.</p>
+                    </section>
+                `
+            },
+            dashboard: {
+                title: "Dashboard centralizado",
+                subtitle: "Control integral de inventario y ventas",
+                icon: "📊",
+                colorClass: "color-orange",
+                content: `
+                    <section>
+                        <h2><span class="section-emoji">👁️</span> Visibilidad en tiempo real</h2>
+                        <p>El dashboard de ControlPetro te proporciona una <span class="highlight">vista completa y actualizada en tiempo real</span> de todas tus estaciones. Accede desde cualquier dispositivo para monitorear:</p>
+                        <ul>
+                            <li>Niveles de inventario actual de cada tipo de combustible</li>
+                            <li>Recepciones y entradas de combustible</li>
+                            <li>Volúmenes de venta por estación</li>
+                            <li>Transacciones en curso y pendientes</li>
+                        </ul>
+                    </section>
+
+                    <section>
+                        <h2><span class="section-emoji">🔍</span> Filtros inteligentes</h2>
+                        <p>Personaliza tu vista con filtros potentes:</p>
+                        <ul>
+                            <li><span class="highlight">Por estación:</span> Selecciona una o varias gasolineras para análisis específico</li>
+                            <li><span class="highlight">Por tipo de combustible:</span> Magna, Premium, Diesel o todos</li>
+                            <li><span class="highlight">Por rango de fechas:</span> Hoy, última semana, mes o período personalizado</li>
+                        </ul>
+                        <p>Los filtros se aplican instantáneamente, permitiéndote hacer comparativas rápidas y análisis profundos de tus operaciones.</p>
+                    </section>
+
+                    <section>
+                        <h2><span class="section-emoji">📈</span> Gráficas de tendencias</h2>
+                        <p>Visualiza las tendencias de ventas de los últimos 7 días con gráficas claras e intuitivas. Identifica patrones de demanda, picos de venta y períodos bajos para planificar mejor tu operación.</p>
+                        <p>Los gráficos se actualizan automáticamente conforme se registran nuevas transacciones, manteniéndote siempre informado de la actividad actual.</p>
+                    </section>
+
+                    <section>
+                        <h2><span class="section-emoji">⚠️</span> Alertas inteligentes</h2>
+                        <p>Configura umbrales de inventario mínimo para cada tipo de combustible y estación. Cuando el nivel cae por debajo del <span class="highlight">umbral establecido</span>, recibirás una alerta inmediata para gestionar reabastecimiento a tiempo.</p>
+                        <p>Esto evita desabastecimiento de combustibles en tus estaciones y pérdida de ventas por falta de producto.</p>
+                    </section>
+
+                    <section>
+                        <h2><span class="section-emoji">📋</span> Reportes de cumplimiento SAT/CNE</h2>
+                        <p>Genera reportes automáticos que cumplen con los requisitos de regulación de la Secretaría de Administración Tributaria (SAT) y la Comisión Nacional de Energía (CNE).</p>
+                        <p>Los reportes incluyen trazabilidad completa de todas las transacciones, facilitando auditorías y cumplimiento normativo sin esfuerzo manual adicional.</p>
+                    </section>
+
+                    <section>
+                        <h2><span class="section-emoji">🔮</span> Predicciones de demanda</h2>
+                        <p>Nuestros algoritmos de IA analizan patrones históricos para <span class="highlight">predecir demanda futura</span> de combustibles. Esta información te ayuda a:</p>
+                        <ul>
+                            <li>Planificar reabastecimiento con anticipación</li>
+                            <li>Optimizar niveles de inventario</li>
+                            <li>Reducir costos operativos</li>
+                            <li>Mejorar satisfacción del cliente evitando desabastecimiento</li>
+                        </ul>
+                    </section>
+                `
+            },
+            anomalias: {
+                title: "Detección de anomalías",
+                subtitle: "Prevención inteligente de pérdidas y fraudes",
+                icon: "🔍",
+                colorClass: "color-pink",
+                content: `
+                    <section>
+                        <h2><span class="section-emoji">🧠</span> Análisis comparativo automático</h2>
+                        <p>ControlPetro ejecuta algoritmos de IA que analizan continuamente la relación entre:</p>
+                        <ul>
+                            <li>Combustible recibido (recepciones)</li>
+                            <li>Combustible vendido (ventas)</li>
+                            <li>Combustible en tanques (inventario)</li>
+                        </ul>
+                        <p>Este análisis detecta inconsistencias que indicarían problemas operacionales o irregularidades.</p>
+                    </section>
+
+                    <section>
+                        <h2><span class="section-emoji">📊</span> Detección de mermas anormales</h2>
+                        <p>Las mermas (pérdida natural de combustible) son inevitables, pero cuando son anormales indican problemas. El sistema detecta patrones de <span class="highlight">shrinkage anómalo</span> por:</p>
+                        <ul>
+                            <li>Desvíos superiores a los históricos</li>
+                            <li>Variaciones bruscas sin explicación</li>
+                            <li>Pérdidas concentradas en horarios específicos</li>
+                            <li>Anomalías por tipo de combustible</li>
+                        </ul>
+                        <p>Cuando se detecta una merma anómala, se genera una alerta para investigación inmediata.</p>
+                    </section>
+
+                    <section>
+                        <h2><span class="section-emoji">⛔</span> Identificación de transacciones duplicadas</h2>
+                        <p>El sistema detecta cuando una misma remisión o transacción ha sido registrada múltiples veces. Esto puede ocurrir por:</p>
+                        <ul>
+                            <li>Error del operario al capturar datos</li>
+                            <li>Envío múltiple accidental vía WhatsApp</li>
+                            <li>Intento deliberado de fraude</li>
+                        </ul>
+                        <p>Las duplicaciones se <span class="highlight">marcan y alertan</span> antes de impactar los registros contables.</p>
+                    </section>
+
+                    <section>
+                        <h2><span class="section-emoji">🔎</span> Detección de discrepancias</h2>
+                        <p>Identifica inconsistencias en datos como:</p>
+                        <ul>
+                            <li>Volúmenes reportados que no cierren en la ecuación recibido = vendido + existencia</li>
+                            <li>Precios significativamente diferentes al histórico</li>
+                            <li>Transacciones a horarios inusuales</li>
+                            <li>Movimientos desde estaciones inactivas</li>
+                        </ul>
+                        <p>Cada discrepancia se registra con contexto para facilitar investigación.</p>
+                    </section>
+
+                    <section>
+                        <h2><span class="section-emoji">📚</span> Análisis histórico de patrones</h2>
+                        <p>El algoritmo mantiene un perfil histórico de patrones normales para cada estación, considerando:</p>
+                        <ul>
+                            <li>Variaciones estacionales (invierno vs verano, fines de semana)</li>
+                            <li>Cambios en operación debidos a mantenimiento o cambios de personal</li>
+                            <li>Impacto de eventos externos (festivos, competencia)</li>
+                        </ul>
+                        <p>Esto permite detectar anomalías reales sin falsas alarmas.</p>
+                    </section>
+
+                    <section>
+                        <h2><span class="section-emoji">🚨</span> Alertas en tiempo real</h2>
+                        <p>Cuando se detecta una anomalía, recibe una notificación inmediata en el dashboard y vía WhatsApp. Las alertas incluyen:</p>
+                        <ul>
+                            <li>Tipo de anomalía detectada</li>
+                            <li>Estación afectada</li>
+                            <li>Datos de la transacción sospechosa</li>
+                            <li>Nivel de severidad (bajo, medio, alto)</li>
+                            <li>Recomendación de acción</li>
+                        </ul>
+                        <p>Esto permite intervención rápida antes de que pequeños problemas se conviertan en pérdidas significativas.</p>
+                    </section>
+                `
+            },
+            multiestacion: {
+                title: "Multi-estación y multi-empresa",
+                subtitle: "Gestión empresarial integrada y escalable",
+                icon: "🏢",
+                colorClass: "color-navy-light",
+                content: `
+                    <section>
+                        <h2><span class="section-emoji">🏪</span> Diseñado para cadenas y corporativos</h2>
+                        <p>ControlPetro está pensado desde el inicio para operadores con <span class="highlight">múltiples estaciones y múltiples razones sociales</span>. Si administras una red de gasolineras o tienes diferentes empresas bajo estructura corporativa, el sistema se ajusta a tu complejidad operacional.</p>
+                        <p>Una sola plataforma, múltiples cadenas, un control centralizado pero granular.</p>
+                    </section>
+
+                    <section>
+                        <h2><span class="section-emoji">📍</span> Vistas multinivel</h2>
+                        <p>Accede a la información desde diferentes niveles de agregación:</p>
+                        <ul>
+                            <li><span class="highlight">Nivel estación:</span> Datos específicos de una gasolinera individual</li>
+                            <li><span class="highlight">Nivel RFC:</span> Consolidación de todas las estaciones bajo un mismo RFC</li>
+                            <li><span class="highlight">Nivel organización:</span> Vista ejecutiva de toda la empresa incluyendo múltiples RFCs</li>
+                        </ul>
+                        <p>Cada usuario ve exactamente lo que necesita según su rol y responsabilidades.</p>
+                    </section>
+
+                    <section>
+                        <h2><span class="section-emoji">🔐</span> Control de permisos granular</h2>
+                        <p>Define permisos específicos por usuario y por estación. Ejemplos:</p>
+                        <ul>
+                            <li>Un gerente solo ve sus 3 estaciones asignadas</li>
+                            <li>Un operario solo puede capturar datos en su estación</li>
+                            <li>Un auditor puede ver reportes pero no modificar datos</li>
+                            <li>Un ejecutivo ve consolidados de toda la red</li>
+                        </ul>
+                        <p>Esto asegura seguridad sin sacrificar flexibilidad operacional.</p>
+                    </section>
+
+                    <section>
+                        <h2><span class="section-emoji">👥</span> Roles basados en acceso</h2>
+                        <p>ControlPetro incluye cuatro roles principales ajustables a tu estructura:</p>
+                        <ul>
+                            <li><span class="highlight">Platform Admin:</span> Control total del sistema, gestión de usuarios y empresas</li>
+                            <li><span class="highlight">Organization Admin:</span> Administrador de una empresa específica, control de RFCs y reportes</li>
+                            <li><span class="highlight">Group Manager:</span> Responsable de grupo de estaciones, supervisión y monitoreo</li>
+                            <li><span class="highlight">Operator:</span> Personal de estación, captura de datos y operación diaria</li>
+                        </ul>
+                        <p>Los roles se configuran con permisos específicos para cada acción dentro del sistema.</p>
+                    </section>
+
+                    <section>
+                        <h2><span class="section-emoji">🌐</span> Múltiples organizaciones en una plataforma</h2>
+                        <p>La plataforma soporta múltiples organizaciones completamente aisladas pero compartiendo infraestructura. Esto es ideal para:</p>
+                        <ul>
+                            <li>Grupos de inversión con múltiples cadenas</li>
+                            <li>Operadores que compran/venden franquicias</li>
+                            <li>Consolidadores de estaciones de diferentes dueños</li>
+                        </ul>
+                        <p>Cada organización ve solo sus datos, con administradores independientes pero bajo una plataforma única.</p>
+                    </section>
+
+                    <section>
+                        <h2><span class="section-emoji">📊</span> Consolidación de reportes</h2>
+                        <p>Genera reportes en cualquier nivel de agregación:</p>
+                        <ul>
+                            <li>Reportes individuales por estación</li>
+                            <li>Consolidados por RFC</li>
+                            <li>Reportes corporativos de toda la organización</li>
+                            <li>Análisis comparativo entre estaciones</li>
+                        </ul>
+                        <p>Los reportes se generan en segundos y se pueden exportar en múltiples formatos para análisis en herramientas de tu preferencia.</p>
+                    </section>
+
+                    <section>
+                        <h2><span class="section-emoji">⚙️</span> Escalabilidad sin límites</h2>
+                        <p>La arquitectura de ControlPetro está diseñada para crecer con tu negocio. Si hoy tienes 5 estaciones y mañana 500, la plataforma escala automáticamente sin degradación de rendimiento.</p>
+                        <p>El sistema soporta cualquier número de organizaciones, estaciones, usuarios y transacciones diarias sin limitaciones prácticas.</p>
+                    </section>
+                `
+            }
+        };
+
+        // Get feature from URL parameter
+        function getFeatureFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('feature');
+        }
+
+        // Render article or error
+        function renderContent() {
+            const feature = getFeatureFromUrl();
+            const container = document.getElementById('article-container');
+
+            if (!feature || !articles[feature]) {
+                // Show error page
+                container.innerHTML = `
+                    <div class="error-container">
+                        <div class="error-icon">❌</div>
+                        <h1 class="error-title">Función no encontrada</h1>
+                        <p class="error-message">Lo sentimos, no pudimos encontrar la página que buscas.</p>
+                        <a href="/" class="error-link">Volver a inicio</a>
+                    </div>
+                `;
+                return;
+            }
+
+            const article = articles[feature];
+
+            container.innerHTML = `
+                <div class="article-header">
+                    <div class="article-icon ${article.colorClass}">${article.icon}</div>
+                    <div class="article-title-section">
+                        <h1 class="article-title">${article.title}</h1>
+                        <p class="article-subtitle">${article.subtitle}</p>
+                    </div>
+                </div>
+
+                <div class="article-content ${article.colorClass}">
+                    ${article.content}
+                </div>
+            `;
+        }
+
+        // Render on page load
+        document.addEventListener('DOMContentLoaded', renderContent);
+    </script>
+</body>
+</html>

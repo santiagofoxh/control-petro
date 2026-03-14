@@ -78,6 +78,11 @@ def demo():
 def article():
     return send_from_directory("static", "article.html")
 
+@app.route("/info")
+def info():
+    return send_from_directory("static", "info.html")
+
+
 
 @app.route("/login")
 def login_page():

@@ -1205,10 +1205,13 @@ function init() {
     if (!tk) { window.location.href = '/login'; return; }
   }
 
-  const now = new Date();
-  document.getElementById('topbarDate').textContent = now.toLocaleDateString('es-MX', {
-    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
-  });
+  function updateClock() {
+    var n = new Date();
+    var el = document.getElementById('topbarDate');
+    if (el) el.textContent = n.toLocaleDateString('es-MX', {day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  }
+  updateClock();
+  setInterval(updateClock, 30000);
   navigate('dashboard');
   loadUserProfile();
 }

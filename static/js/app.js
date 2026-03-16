@@ -5,8 +5,7 @@ const FUEL_LABELS = { magna: 'Magna', premium: 'Premium', diesel: 'Diesel' };
 const FUEL_COLORS = { magna: '#22c55e', premium: '#ef4444', diesel: '#eab308' };
 let charts = {};
 let currentPage = 'dashboard';
-
-// ----------------------------------------------------------------
+// ---------------------------------------------------------------
 //  Theme Toggle (Dark / Light)
 // ----------------------------------------------------------------
 const SUN_ICON = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
@@ -74,16 +73,40 @@ function destroyCharts() {
 // ----------------------------------------------------------------
 //  API helpers
 // ----------------------------------------------------------------
+function getApiHeaders() {
+  const t = localStorage.getItem('cp-auth-token');
+  const h = { 'Content-Type': 'application/json' };
+  if (t) h['Authorization'] = 'Bearer ' + t;
+  return h;
+}
+
+function promptLogin() {
+  const t = prompt('Ingresa tu token de acceso para usar las funciones protegidas:');
+  if (t && t.trim()) {
+    localStorage.setItem('cp-auth-token', t.trim());
+    return true;
+  }
+  return false;
+}
+
 async function api(path) {
-  const r = await fetch(API + path);
-  if (!r.ok) throw new Error(`API error: ${r.status}`);
+  const r = await fetch(API + path, { headers: getApiHeaders() });
+  if (r.status === 401 || r.status === 403) {
+    if (promptLogin()) return api(path);
+    throw new Error('No autorizado');
+  }
+  if (!r.ok) throw new Error('API error: ' + r.status);
   return r.json();
 }
 async function apiPost(path, body) {
   const r = await fetch(API + path, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    method: 'POST', headers: getApiHeaders(),
     body: JSON.stringify(body),
   });
+  if (r.status === 401 || r.status === 403) {
+    if (promptLogin()) return apiPost(path, body);
+    throw new Error('No autorizado');
+  }
   return r.json();
 }
 

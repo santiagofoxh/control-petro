@@ -330,7 +330,7 @@
         </a>
         <div class="navbar-links">
             <a href="/">Inicio</a>
-            <a href="/demo" class="btn-demo">Probar Demo</a>
+            <a href="#" onclick="openContactModal();return false" class="btn-demo">Probar Demo</a>
         </div>
     </nav>
 
@@ -389,7 +389,7 @@
         <div class="contact-box">
             <h3>&#191;Quieres conocer el producto en acci&#243;n?</h3>
             <p>Explora el dashboard con datos de ejemplo</p>
-            <a href="/demo">Probar Demo</a>
+            <a href="#" onclick="openContactModal();return false">Probar Demo</a>
         </div>
     </div>
 
@@ -426,7 +426,7 @@
         <div class="contact-box">
             <h3>&#191;Listo para digitalizar tu operaci&#243;n?</h3>
             <p>Agenda una demostraci&#243;n personalizada con nuestro equipo</p>
-            <a href="mailto:contacto@controlpetro.com">Contactar ventas</a>
+            <a href="#" onclick="openContactModal();return false">Contactar ventas</a>
         </div>
     </div>
 
@@ -513,5 +513,81 @@
             }, 100);
         }
     </script>
+
+<!-- Contact Modal -->
+<div id="contactModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(10,22,40,0.6);z-index:9999;align-items:center;justify-content:center;backdrop-filter:blur(4px);">
+  <div style="background:#fff;border-radius:16px;max-width:480px;width:90%;padding:40px;position:relative;box-shadow:0 24px 48px rgba(0,0,0,0.15);">
+    <button onclick="closeContactModal()" style="position:absolute;top:16px;right:16px;background:none;border:none;font-size:24px;cursor:pointer;color:#999;line-height:1;">&times;</button>
+    <div style="text-align:center;margin-bottom:24px;">
+      <h2 style="font-size:1.5rem;font-weight:700;color:#0A1628;margin:0 0 8px;">Contactar ventas</h2>
+      <p style="color:#666;font-size:0.95rem;margin:0;">Dejanos tus datos y nos comunicamos contigo.</p>
+    </div>
+    <form id="contactForm" onsubmit="submitContact(event)">
+      <div style="margin-bottom:16px;">
+        <label style="display:block;font-size:0.85rem;font-weight:600;color:#0A1628;margin-bottom:6px;">Nombre</label>
+        <input type="text" name="nombre" required placeholder="Tu nombre completo" style="width:100%;padding:10px 14px;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;outline:none;transition:border-color 0.2s;" onfocus="this.style.borderColor='#0D9488'" onblur="this.style.borderColor='#ddd'">
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="display:block;font-size:0.85rem;font-weight:600;color:#0A1628;margin-bottom:6px;">Correo</label>
+        <input type="email" name="email" required placeholder="correo@empresa.com" style="width:100%;padding:10px 14px;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;outline:none;transition:border-color 0.2s;" onfocus="this.style.borderColor='#0D9488'" onblur="this.style.borderColor='#ddd'">
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="display:block;font-size:0.85rem;font-weight:600;color:#0A1628;margin-bottom:6px;">Telefono</label>
+        <input type="tel" name="telefono" required placeholder="614 123 4567" style="width:100%;padding:10px 14px;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;outline:none;transition:border-color 0.2s;" onfocus="this.style.borderColor='#0D9488'" onblur="this.style.borderColor='#ddd'">
+      </div>
+      <div style="margin-bottom:24px;">
+        <label style="display:block;font-size:0.85rem;font-weight:600;color:#0A1628;margin-bottom:6px;">Horario preferido para llamada</label>
+        <select name="horario" required style="width:100%;padding:10px 14px;border:1.5px solid #ddd;border-radius:8px;font-size:0.95rem;box-sizing:border-box;outline:none;background:#fff;transition:border-color 0.2s;" onfocus="this.style.borderColor='#0D9488'" onblur="this.style.borderColor='#ddd'">
+          <option value="" disabled selected>Selecciona un horario</option>
+          <option value="9:00 - 11:00 AM">9:00 - 11:00 AM</option>
+          <option value="11:00 - 1:00 PM">11:00 - 1:00 PM</option>
+          <option value="1:00 - 3:00 PM">1:00 - 3:00 PM</option>
+          <option value="3:00 - 5:00 PM">3:00 - 5:00 PM</option>
+          <option value="5:00 - 7:00 PM">5:00 - 7:00 PM</option>
+        </select>
+      </div>
+      <button type="submit" id="contactSubmitBtn" style="width:100%;padding:14px;background:#0D9488;color:#fff;border:none;border-radius:10px;font-size:1rem;font-weight:600;cursor:pointer;transition:background 0.2s;">Enviar</button>
+    </form>
+    <div id="contactSuccess" style="display:none;text-align:center;padding:20px 0;">
+      <div style="font-size:3rem;margin-bottom:12px;">&#10003;</div>
+      <h3 style="color:#0A1628;margin:0 0 8px;">Recibimos tus datos</h3>
+      <p style="color:#666;font-size:0.95rem;">Nos pondremos en contacto contigo pronto.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+function openContactModal(){
+  var m=document.getElementById('contactModal');
+  m.style.display='flex';
+  document.getElementById('contactForm').style.display='block';
+  document.getElementById('contactSuccess').style.display='none';
+  document.getElementById('contactForm').reset();
+}
+function closeContactModal(){
+  document.getElementById('contactModal').style.display='none';
+}
+document.getElementById('contactModal').addEventListener('click',function(e){
+  if(e.target===this)closeContactModal();
+});
+function submitContact(e){
+  e.preventDefault();
+  var btn=document.getElementById('contactSubmitBtn');
+  btn.disabled=true;btn.textContent='Enviando...';
+  var f=e.target;
+  var data={nombre:f.nombre.value,email:f.email.value,telefono:f.telefono.value,horario:f.horario.value};
+  fetch('https://script.google.com/macros/s/AKfycbyiouaKWKhfuRLI0vm5Y-9Lh3_qPkCpRFxCsfI084sEVdKtKMdavKf4veURkYOTt_0-vA/exec',{
+    method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)
+  }).then(function(){
+    document.getElementById('contactForm').style.display='none';
+    document.getElementById('contactSuccess').style.display='block';
+    setTimeout(closeContactModal,3000);
+  }).catch(function(){
+    btn.disabled=false;btn.textContent='Enviar';
+    alert('Error al enviar. Intenta de nuevo.');
+  });
+}
+</script>
+
 </body>
 </html>

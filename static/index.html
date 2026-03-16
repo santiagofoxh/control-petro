@@ -1,6 +1,10 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-theme="light">
 <head>
+<script>
+  // Apply saved theme instantly to prevent flash
+  (function(){var t=localStorage.getItem('cp-theme');if(t==='dark')document.documentElement.removeAttribute('data-theme');else document.documentElement.setAttribute('data-theme','light');})();
+</script>
 <meta charset="UTF-8">
     <link rel="icon" type="image/png" href="https://lh3.googleusercontent.com/d/1U4b_we3RXomMkBELS8oZ1jYvJqT5s6B3=s32">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">

@@ -1005,10 +1005,20 @@
 
     .capacitacion-section { padding: 60px 20px; }
     .capacitacion-container {
-      grid-template-columns: 1fr;
+      grid-template-columns: 1fr !important;
       gap: 32px;
     }
-    .capacitacion-content .section-title { font-size: 28px; }
+    .capacitacion-img { width: 100%; }
+    .capacitacion-content { width: 100%; }
+    .capacitacion-content .section-label { margin-bottom: 8px; }
+    .capacitacion-content .section-title { font-size: 28px; max-width: 100%; }
+    .capacitacion-content .section-desc { max-width: 100%; font-size: 16px; }
+    .capacitacion-details { width: 100%; }
+    .capacitacion-detail { width: 100%; }
+    .capacitacion-detail p { font-size: 14px; }
+
+    .section-title { max-width: 100%; }
+    .section-desc { max-width: 100%; }
 
     footer { padding: 60px 20px 30px; }
     .footer-top {

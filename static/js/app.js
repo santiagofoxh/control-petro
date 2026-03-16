@@ -106,28 +106,33 @@ function destroyCharts() {
 // ----------------------------------------------------------------
 //  API helpers
 // ----------------------------------------------------------------
-function getApiHeaders() {
-  const t = localStorage.getItem('cp-auth-token');
-  const h = { 'Content-Type': 'application/json' };
-  if (t) h['Authorization'] = 'Bearer ' + t;
-  return h;
+// Auto-fetch service token from server
+let _serviceToken = localStorage.getItem('cp-auth-token') || '';
+
+async function fetchServiceToken() {
+  try {
+    const r = await fetch('/api/demo-config');
+    if (r.ok) {
+      const data = await r.json();
+      if (data.token) {
+        _serviceToken = data.token;
+        localStorage.setItem('cp-auth-token', data.token);
+      }
+    }
+  } catch(e) { console.warn('Could not fetch service config'); }
 }
 
-function promptLogin() {
-  const t = prompt('Ingresa tu token de acceso para usar las funciones protegidas:');
-  if (t && t.trim()) {
-    localStorage.setItem('cp-auth-token', t.trim());
-    return true;
-  }
-  return false;
+// Fetch token on page load
+fetchServiceToken();
+
+function getApiHeaders() {
+  const h = { 'Content-Type': 'application/json' };
+  if (_serviceToken) h['Authorization'] = 'Bearer ' + _serviceToken;
+  return h;
 }
 
 async function api(path) {
   const r = await fetch(API + path, { headers: getApiHeaders() });
-  if (r.status === 401 || r.status === 403) {
-    if (promptLogin()) return api(path);
-    throw new Error('No autorizado');
-  }
   if (!r.ok) throw new Error('API error: ' + r.status);
   return r.json();
 }
@@ -136,10 +141,6 @@ async function apiPost(path, body) {
     method: 'POST', headers: getApiHeaders(),
     body: JSON.stringify(body),
   });
-  if (r.status === 401 || r.status === 403) {
-    if (promptLogin()) return apiPost(path, body);
-    throw new Error('No autorizado');
-  }
   return r.json();
 }
 

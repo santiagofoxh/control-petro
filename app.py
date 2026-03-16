@@ -134,6 +134,15 @@ def api_login():
     })
 
 
+@app.route("/api/demo-config")
+def api_demo_config():
+    """Return the service token for dashboard use (same-origin only)."""
+    token = os.environ.get("OPENCLAW_SERVICE_TOKEN", "")
+    if not token:
+        return jsonify({"error": "Service token not configured"}), 500
+    return jsonify({"token": token})
+
+
 @app.route("/api/auth/register", methods=["POST"])
 def api_register():
     """Register a new operator account (pending admin approval for elevated access)."""

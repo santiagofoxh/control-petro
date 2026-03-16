@@ -41,7 +41,40 @@ function chartTextColor() {
 }
 
 // Init icon on page load
-document.addEventListener('DOMContentLoaded', updateThemeIcon);
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize theme: default to light
+  const saved = localStorage.getItem('cp-theme');
+  if (saved === 'dark') {
+    document.documentElement.removeAttribute('data-theme');
+  } else {
+    document.documentElement.setAttribute('data-theme', 'light');
+    if (!saved) {
+      localStorage.setItem('cp-theme', 'light');
+      // First-time user: show dark mode tip
+      setTimeout(function() {
+        const tip = document.createElement('div');
+        tip.id = 'darkModeTip';
+        tip.innerHTML = '<div style="position:fixed;top:20px;right:20px;z-index:9999;background:#1e293b;color:#fff;padding:16px 24px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.25);max-width:300px;font-size:14px;line-height:1.5;animation:fadeInTip .4s ease">' +
+          '<div style="font-weight:600;margin-bottom:6px">Modo oscuro disponible</div>' +
+          '<div>Puedes cambiar al modo oscuro en cualquier momento usando el icono <span style="display:inline-block;vertical-align:middle;margin:0 2px">' + MOON_ICON.replace(/12/g,'14') + '</span> en la barra superior.</div>' +
+          '<button onclick="document.getElementById(\'darkModeTip\').remove()" style="margin-top:10px;background:#22c55e;color:#fff;border:none;padding:6px 16px;border-radius:6px;cursor:pointer;font-size:13px">Entendido</button>' +
+          '</div>';
+        document.body.appendChild(tip);
+        // Auto-dismiss after 8 seconds
+        setTimeout(function() { var el = document.getElementById('darkModeTip'); if (el) el.remove(); }, 8000);
+      }, 1500);
+    }
+  }
+  updateThemeIcon();
+});
+
+// Add fadeIn animation for tip
+if (!document.getElementById('tipStyle')) {
+  const s = document.createElement('style');
+  s.id = 'tipStyle';
+  s.textContent = '@keyframes fadeInTip{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}';
+  document.head.appendChild(s);
+}
 
 // ----------------------------------------------------------------
 //  Navigation

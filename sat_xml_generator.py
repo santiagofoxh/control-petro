@@ -284,7 +284,7 @@ def extract_data_from_file(file_bytes, filename):
             }]
 
         message = client.messages.create(
-            model="claude-opus-4-6-20250916",
+            model="claude-opus-4-6",
             max_tokens=8000,
             system=EXTRACTION_SYSTEM_PROMPT,
             messages=messages,
@@ -365,7 +365,7 @@ Generate the COMPLETE XML with all products, tanks, dispensarios, recepciones, e
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
         message = client.messages.create(
-            model="claude-opus-4-6-20250916",
+            model="claude-opus-4-6",
             max_tokens=16000,
             system=SYSTEM_PROMPT,
             messages=[

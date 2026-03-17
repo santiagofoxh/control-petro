@@ -585,7 +585,9 @@ async function extractFromDocument() {
     const formData = new FormData();
     formData.append('file', uploadedFile);
 
-    const resp = await fetch('/api/sat-xml/extract', { method: 'POST', body: formData });
+    const extractHeaders = {};
+    if (_serviceToken) extractHeaders['Authorization'] = 'Bearer ' + _serviceToken;
+    const resp = await fetch('/api/sat-xml/extract', { method: 'POST', headers: extractHeaders, body: formData });
     const result = await resp.json();
 
     if (result.error) {

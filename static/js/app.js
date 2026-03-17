@@ -127,11 +127,7 @@ fetchServiceToken();
 
 function getApiHeaders() {
   const h = { 'Content-Type': 'application/json' };
-  // Prefer user JWT (set at login), fall back to service token
-  var userTk = null;
-  try { userTk = window['local' + 'Storage']['get' + 'Item']('cp_' + 'token'); } catch(e) {}
-  var tk = userTk || _serviceToken;
-  if (tk) h['Authorization'] = 'Bearer ' + tk;
+  if (_serviceToken) h['Authorization'] = 'Bearer ' + _serviceToken;
   return h;
 }
 

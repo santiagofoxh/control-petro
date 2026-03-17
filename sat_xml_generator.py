@@ -375,10 +375,26 @@ Generate the COMPLETE XML with all products, tanks, dispensarios, recepciones, e
 
         xml_content = message.content[0].text.strip()
 
-        # Clean up any markdown fences if present
-        if xml_content.startswith("```"):
-            lines = xml_content.split("\n")
-            xml_content = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+        # Robust XML extraction from AI response
+        import re
+        # Try to extract XML from between code fences first
+        fence_match = re.search(r'```(?:xml)?\s*\n(.*?)```', xml_content, re.DOTALL)
+        if fence_match:
+            xml_content = fence_match.group(1).strip()
+        else:
+            # If no fences, find the XML content by declaration or root element
+            xml_start = xml_content.find('<?xml')
+            if xml_start == -1:
+                xml_start = xml_content.find('<ControlesVolumetricos')
+            if xml_start == -1:
+                xml_start = xml_content.find('<covol:')
+            if xml_start > 0:
+                xml_content = xml_content[xml_start:]
+
+        # Remove any trailing text after the last XML closing tag
+        last_close = xml_content.rfind('>')
+        if last_close != -1 and last_close < len(xml_content) - 1:
+            xml_content = xml_content[:last_close + 1]
 
         # Validate XML is well-formed
         validation = validate_xml(xml_content)

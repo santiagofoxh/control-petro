@@ -61,7 +61,7 @@
       </a>
     </nav>
     <div class="sidebar-razon" id="razonSelector" style="display:none">
-      <div class="razon-label">Razon Social</div>
+      <div style="display:flex;justify-content:space-between;align-items:center"><div class="razon-label">Razon Social</div><button onclick="openRazonManager()" style="background:none;border:none;color:var(--g500);cursor:pointer;font-size:.6rem;padding:0;text-transform:uppercase;letter-spacing:.05em" title="Administrar Razones Sociales">Administrar</button></div>
       <select id="razonSelect" onchange="onRazonChange(this.value)">
         <option value="">Todas las Razones</option>
       </select>

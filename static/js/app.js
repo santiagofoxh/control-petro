@@ -5,6 +5,8 @@ const FUEL_LABELS = { magna: 'Magna', premium: 'Premium', diesel: 'Diesel' };
 const FUEL_COLORS = { magna: '#22c55e', premium: '#ef4444', diesel: '#eab308' };
 let charts = {};
 let currentPage = 'dashboard';
+let _selectedRazonId = '';  // '' = all razones
+let _razonesList = [];
 // ---------------------------------------------------------------
 //  Theme Toggle (Dark / Light)
 // ----------------------------------------------------------------
@@ -144,6 +146,47 @@ async function apiPost(path, body) {
   return r.json();
 }
 
+// Razon Social filter helpers
+function razonParam(sep = '?') { return _selectedRazonId ? sep + 'razon_id=' + _selectedRazonId : ''; }
+function razonAmp() { return _selectedRazonId ? '&razon_id=' + _selectedRazonId : ''; }
+
+async function loadRazones() {
+  try {
+    _razonesList = await api('/api/razones-sociales');
+    const sel = document.getElementById('razonSelect');
+    const container = document.getElementById('razonSelector');
+    if (sel && _razonesList.length > 1) {
+      sel.innerHTML = '<option value="">Todas las Razones</option>' +
+        _razonesList.map(r => '<option value="' + r.id + '"' + (r.id == _selectedRazonId ? ' selected' : '') + '>' + r.name + ' (' + r.station_count + ')</option>').join('');
+      container.style.display = 'block';
+    }
+    updateSidebarUser();
+  } catch(e) { console.warn('Could not load razones:', e); }
+}
+
+function updateSidebarUser() {
+  const nameEl = document.getElementById('userName');
+  const roleEl = document.getElementById('userRole');
+  const avatarEl = document.getElementById('userAvatar');
+  if (!nameEl) return;
+  const totalStations = _razonesList.reduce((sum, r) => sum + r.station_count, 0);
+  nameEl.textContent = 'Demo GazPro';
+  avatarEl.textContent = 'DG';
+  if (_selectedRazonId) {
+    const r = _razonesList.find(r => r.id == _selectedRazonId);
+    roleEl.textContent = r ? r.name + ' (' + r.station_count + ' est.)' : totalStations + ' estaciones activas';
+  } else {
+    roleEl.textContent = totalStations + ' estaciones activas';
+  }
+}
+
+function onRazonChange(val) {
+  _selectedRazonId = val;
+  updateSidebarUser();
+  destroyCharts();
+  loadPage(currentPage);
+}
+
 function fmt(n) { return n != null ? Math.round(n).toLocaleString('es-MX') : '0'; }
 function pct(n) { return n != null ? n.toFixed(1) + '%' : '0%'; }
 
@@ -176,10 +219,10 @@ async function loadDashboard() {
   showContent('<div class="loading"><div class="spinner"></div><p>Cargando dashboard...</p></div>');
   try {
     const [dash, salesData, alerts, stations] = await Promise.all([
-      api('/api/dashboard'),
-      api('/api/dashboard/sales-chart?days=7'),
-      api('/api/alerts'),
-      api('/api/stations'),
+      api('/api/dashboard' + razonParam()),
+      api('/api/dashboard/sales-chart?days=7' + razonAmp()),
+      api('/api/alerts' + razonParam()),
+      api('/api/stations' + razonParam()),
     ]);
 
     const changeCls = dash.change_pct >= 0 ? 'up' : 'down';
@@ -885,9 +928,9 @@ async function loadInventario() {
   showContent('<div class="loading"><div class="spinner"></div><p>Cargando inventario...</p></div>');
   try {
     const [summary, history, stations] = await Promise.all([
-      api('/api/inventory/summary'),
-      api('/api/inventory/history?days=7'),
-      api('/api/stations'),
+      api('/api/inventory/summary' + razonParam()),
+      api('/api/inventory/history?days=7' + razonAmp()),
+      api('/api/stations' + razonParam()),
     ]);
 
     const critical = stations.filter(s => s.status === 'critical');
@@ -1061,7 +1104,7 @@ function renderDemandChart(forecast) {
 // ----------------------------------------------------------------
 async function loadRegistrar() {
   try {
-    const stations = await api('/api/stations');
+    const stations = await api('/api/stations' + razonParam());
     let html = `
     <div class="panel" style="max-width:600px">
       <div class="panel-header"><span class="panel-title">Registrar Movimiento de Combustible</span></div>
@@ -1256,7 +1299,7 @@ function doLogout() {
   window.location.href = '/login';
 }
 
-function init() {
+async function init() {
   // Require auth on app. subdomain
   if (window.location.hostname.indexOf('app.') === 0) {
     var tk = null;
@@ -1271,6 +1314,7 @@ function init() {
   }
   updateClock();
   setInterval(updateClock, 30000);
+  await loadRazones();
   navigate('dashboard');
   loadUserProfile();
 }

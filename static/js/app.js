@@ -187,6 +187,82 @@ function onRazonChange(val) {
   loadPage(currentPage);
 }
 
+// ----------------------------------------------------------------
+//  Razones Sociales Management Modal
+// ----------------------------------------------------------------
+async function openRazonManager() {
+  openModal('<div class="loading"><div class="spinner"></div><p>Cargando...</p></div>');
+  try {
+    const data = await api('/api/razones-sociales/detail');
+    renderRazonManager(data);
+  } catch(e) { openModal('<p style="color:var(--red)">Error: ' + e.message + '</p>'); }
+}
+
+function renderRazonManager(data) {
+  const { razones, all_stations } = data;
+  let html = '<div style="max-width:600px;margin:0 auto">';
+  html += '<h2 style="margin:0 0 1rem;font-size:1.1rem;color:var(--w)">Administrar Razones Sociales</h2>';
+  html += '<div style="display:flex;gap:8px;margin-bottom:1.2rem">';
+  html += '<input id="newRazonName" placeholder="Nombre nueva Razon Social" style="flex:1;padding:8px 10px;border-radius:6px;border:1px solid var(--g600);background:var(--navy2);color:var(--w);font-size:.8rem;font-family:Inter,sans-serif">';
+  html += '<input id="newRazonRfc" placeholder="RFC (opcional)" style="width:140px;padding:8px 10px;border-radius:6px;border:1px solid var(--g600);background:var(--navy2);color:var(--w);font-size:.8rem;font-family:Inter,sans-serif">';
+  html += '<button onclick="addRazon()" style="padding:8px 16px;border-radius:6px;border:none;background:var(--green);color:#fff;font-size:.8rem;cursor:pointer;white-space:nowrap;font-weight:600">+ Agregar</button>';
+  html += '</div>';
+  if (!razones.length) html += '<p style="color:var(--g500);font-size:.85rem">No hay razones sociales.</p>';
+  razones.forEach(r => {
+    const checks = all_stations.map(s => {
+      const chk = r.station_ids.includes(s.id) ? ' checked' : '';
+      const dim = s.razon_social_id && s.razon_social_id !== r.id ? ' style="opacity:.5"' : '';
+      return '<label' + dim + '><input type="checkbox" data-razon="' + r.id + '" data-station="' + s.id + '"' + chk + '> ' + s.name + '</label>';
+    }).join('');
+    html += '<div style="background:var(--navy2);border-radius:8px;padding:1rem;margin-bottom:.8rem;border:1px solid var(--g600)">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">';
+    html += '<div><strong style="color:var(--w);font-size:.9rem">' + r.name + '</strong> <span style="color:var(--g500);font-size:.7rem">RFC: ' + (r.rfc||'--') + '</span></div>';
+    html += '<div style="display:flex;gap:6px">';
+    html += '<button onclick="renameRazon(' + r.id + ',\'' + r.name.replace(/'/g,"\\'") + '\')" style="padding:4px 10px;border-radius:4px;border:1px solid var(--g600);background:transparent;color:var(--g400);font-size:.7rem;cursor:pointer">Renombrar</button>';
+    html += '<button onclick="deleteRazon(' + r.id + ',\'' + r.name.replace(/'/g,"\\'") + '\')" style="padding:4px 10px;border-radius:4px;border:none;background:var(--red);color:#fff;font-size:.7rem;cursor:pointer">Eliminar</button>';
+    html += '</div></div>';
+    html += '<div style="font-size:.7rem;color:var(--g500);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Estaciones asignadas:</div>';
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:.8rem;color:var(--g300)">' + checks + '</div>';
+    html += '<button onclick="saveRazonStations(' + r.id + ')" style="margin-top:8px;padding:5px 14px;border-radius:5px;border:none;background:var(--teal);color:#fff;font-size:.75rem;cursor:pointer;font-weight:500">Guardar estaciones</button>';
+    html += '</div>';
+  });
+  const unassigned = all_stations.filter(s => !s.razon_social_id);
+  if (unassigned.length) {
+    html += '<div style="margin-top:.8rem;padding:.8rem;border-radius:8px;background:rgba(249,115,22,.08);border:1px solid rgba(249,115,22,.2)">';
+    html += '<div style="font-size:.75rem;color:var(--orange);font-weight:600;margin-bottom:4px">Estaciones sin asignar:</div>';
+    html += '<div style="font-size:.8rem;color:var(--g400)">' + unassigned.map(s => s.name).join(', ') + '</div></div>';
+  }
+  html += '</div>';
+  openModal(html);
+}
+
+async function addRazon() {
+  const name = document.getElementById('newRazonName').value.trim();
+  const rfc = document.getElementById('newRazonRfc').value.trim();
+  if (!name) return alert('Ingresa un nombre');
+  await fetch('/api/razones-sociales', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name,rfc})});
+  await loadRazones(); openRazonManager();
+}
+
+async function renameRazon(id, cur) {
+  const n = prompt('Nuevo nombre para "' + cur + '":', cur);
+  if (!n || n === cur) return;
+  await fetch('/api/razones-sociales/' + id, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:n})});
+  await loadRazones(); openRazonManager();
+}
+
+async function deleteRazon(id, name) {
+  if (!confirm('Eliminar "' + name + '"?')) return;
+  await fetch('/api/razones-sociales/' + id, {method:'DELETE'});
+  _selectedRazonId = ''; await loadRazones(); openRazonManager(); destroyCharts(); loadPage(currentPage);
+}
+
+async function saveRazonStations(rid) {
+  const ids = Array.from(document.querySelectorAll('input[data-razon="' + rid + '"]')).filter(c=>c.checked).map(c=>+c.dataset.station);
+  await fetch('/api/razones-sociales/' + rid + '/stations', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({station_ids:ids})});
+  await loadRazones(); openRazonManager(); destroyCharts(); loadPage(currentPage);
+}
+
 function fmt(n) { return n != null ? Math.round(n).toLocaleString('es-MX') : '0'; }
 function pct(n) { return n != null ? n.toFixed(1) + '%' : '0%'; }
 

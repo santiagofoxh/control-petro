@@ -30,6 +30,12 @@ body{font-family:'Inter',sans-serif;background:#060d1b;color:var(--w);overflow-x
 .nav-item.active{background:rgba(13,148,136,.1);color:var(--teal-l);border-left-color:var(--teal-l)}
 .nav-item svg{width:18px;height:18px;opacity:.7;flex-shrink:0}
 .nav-item.active svg{opacity:1}
+.sidebar-razon{padding:.8rem 1.2rem;border-top:1px solid rgba(255,255,255,.06)}
+.razon-label{font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;color:var(--g500);margin-bottom:4px;font-weight:600}
+.sidebar-razon select{width:100%;padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:var(--w);font-size:.75rem;font-family:Inter,sans-serif;cursor:pointer;outline:none;-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
+.sidebar-razon select:hover{border-color:rgba(255,255,255,.2)}
+.sidebar-razon select:focus{border-color:var(--green)}
+.sidebar-razon select option{background:#1e293b;color:#e2e8f0}
 .sidebar-user{padding:1rem 1.2rem;border-top:1px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:10px}
 .user-avatar{width:32px;height:32px;background:var(--navy3);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;color:var(--teal-l);flex-shrink:0}
 .user-info{overflow:hidden}
@@ -203,6 +209,9 @@ tr:hover td{background:rgba(255,255,255,.02)}
 body[data-theme="light"]{background:#f0f4f8;color:#1e293b}
 [data-theme="light"] .sidebar{border-right-color:rgba(0,0,0,.08)}
 [data-theme="light"] .sidebar-logo{border-bottom-color:rgba(0,0,0,.08)}
+[data-theme="light"] .sidebar-razon{border-top-color:rgba(0,0,0,.08)}
+[data-theme="light"] .sidebar-razon select{background:rgba(0,0,0,.04);border-color:rgba(0,0,0,.12);color:#1e293b}
+[data-theme="light"] .sidebar-razon select option{background:#fff;color:#1e293b}
 [data-theme="light"] .sidebar-user{border-top-color:rgba(0,0,0,.08)}
 [data-theme="light"] .topbar{border-bottom-color:rgba(0,0,0,.08)}
 [data-theme="light"] .nav-item{color:var(--g400)}

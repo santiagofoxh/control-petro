@@ -7,6 +7,7 @@ let charts = {};
 let currentPage = 'dashboard';
 let _selectedRazonId = '';  // '' = all razones
 let _razonesList = [];
+let _reportFormat = 'sat';
 // ---------------------------------------------------------------
 //  Theme Toggle (Dark / Light)
 // ----------------------------------------------------------------
@@ -442,9 +443,9 @@ async function loadReportes() {
 
     <div class="panel" style="border:1px solid var(--teal);background:linear-gradient(135deg, rgba(13,148,136,.08), rgba(13,148,136,.02))">
       <div class="panel-header">
-        <span class="panel-title" style="color:var(--teal)">Generar XML SAT con IA (Opus 4.6)</span>
+        <span class="panel-title" style="color:var(--teal)">Generar Reporte con IA (Opus 4.6)</span>
       </div>
-      <p style="color:var(--g400);font-size:.78rem;margin-bottom:.8rem">Sube tus datos operativos y Claude genera el XML validado listo para enviar al SAT via el portal de controles volumetricos.</p>
+      <p style="color:var(--g400);font-size:.78rem;margin-bottom:.8rem">Sube tus datos operativos y Claude genera el XML validado listo para enviar al SAT o CNE via el portal de controles volumetricos.</p>
       <div id="satXmlForm">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.6rem">
           <div class="form-group" style="margin:0">
@@ -474,6 +475,15 @@ async function loadReportes() {
             </select>
           </div>
         </div>
+        <div style="margin-bottom:.6rem">
+          <label class="form-label">Formato del Reporte</label>
+          <div id="xmlFormatToggle" style="display:flex;gap:0;border:1px solid var(--g600);border-radius:6px;overflow:hidden;width:fit-content">
+            <button type="button" onclick="setReportFormat('sat')" id="fmtSat" class="fmt-btn fmt-active" style="padding:6px 16px;border:none;font-size:.75rem;cursor:pointer;font-weight:600;font-family:Inter,sans-serif;transition:all .15s">SAT</button>
+            <button type="button" onclick="setReportFormat('cne')" id="fmtCne" class="fmt-btn" style="padding:6px 16px;border:none;border-left:1px solid var(--g600);font-size:.75rem;cursor:pointer;font-weight:600;font-family:Inter,sans-serif;transition:all .15s">CNE</button>
+            <button type="button" onclick="setReportFormat('ambos')" id="fmtAmbos" class="fmt-btn" style="padding:6px 16px;border:none;border-left:1px solid var(--g600);font-size:.75rem;cursor:pointer;font-weight:600;font-family:Inter,sans-serif;transition:all .15s">Ambos</button>
+          </div>
+        </div>
+
         <div id="xmlManualData">
           <div class="form-group" style="margin:0;margin-bottom:.6rem">
             <label class="form-label">Datos Operativos (lecturas de tanques, recepciones PEMEX, ventas del dia)</label>
@@ -915,6 +925,46 @@ function confirmExtractedData() {
   generateSatXml();
 }
 
+function setReportFormat(fmt) {
+  _reportFormat = fmt;
+  ['sat','cne','ambos'].forEach(f => {
+    const b = document.getElementById('fmt' + f.charAt(0).toUpperCase() + f.slice(1));
+    if (b) b.classList.toggle('fmt-active', f === fmt);
+  });
+  const btn = document.getElementById('btnGenXml');
+  if (btn) {
+    const labels = {sat:'Generar XML SAT',cne:'Generar Reporte CNE',ambos:'Generar SAT + CNE'};
+    btn.textContent = labels[fmt] || 'Generar XML con Opus 4.6';
+  }
+}
+
+function renderReportResult(result, formatLabel) {
+  const v = result.validation || {};
+  const products = (v.products || []).map(p =>
+    '<span style="margin-right:8px">' + p.clave + ' (' + p.marca + '): ' + p.tanques + ' tanques, ' + p.dispensarios + ' disp. ' + (p.balance_ok ? badge('Balance OK','green') : badge('Balance Error','red')) + '</span>'
+  ).join('');
+  const warnings = (v.warnings || []).length > 0
+    ? '<div style="color:var(--orange);font-size:.72rem;margin-top:.4rem"><strong>Advertencias:</strong> ' + v.warnings.join('; ') + '</div>'
+    : '';
+  const tokens = result.tokens_used
+    ? '<span style="color:var(--g500);font-size:.68rem;margin-left:8px">(' + (result.tokens_used.input + result.tokens_used.output) + ' tokens)</span>'
+    : '';
+  const portalMsg = formatLabel === 'CNE'
+    ? 'Sube este reporte al portal CNE/CRE segun la normativa vigente.'
+    : 'Sube este .zip al portal SAT: sat.gob.mx/tramites/01116';
+  const sendLabel = formatLabel === 'CNE' ? 'Marcar Enviado al CNE' : 'Marcar Enviado al SAT';
+  return '<div style="background:rgba(13,148,136,.1);border:1px solid var(--teal);border-radius:8px;padding:.8rem;margin-bottom:.5rem">'
+    + '<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">'
+    + badge(formatLabel + ' Generado','green')
+    + '<strong style="color:var(--w);font-size:.82rem">' + result.xml_filename + '</strong>' + tokens + '</div>'
+    + '<div style="font-size:.72rem;color:var(--g400);margin-bottom:.5rem"><strong>Validacion:</strong> ' + (v.product_count||0) + ' productos, ' + (v.bitacora_count||0) + ' entradas bitacora</div>'
+    + '<div style="font-size:.72rem;color:var(--g400)">' + products + '</div>' + warnings
+    + '<div style="margin-top:.6rem;display:flex;gap:.5rem">'
+    + '<button class="btn btn-primary" onclick="downloadReport(' + result.report_id + ')" style="background:var(--teal)">Descargar ' + result.zip_filename + '</button>'
+    + '<button class="btn btn-outline" onclick="sendReport(' + result.report_id + ')">' + sendLabel + '</button></div>'
+    + '<p style="color:var(--g500);font-size:.68rem;margin-top:.5rem;margin-bottom:0">' + portalMsg + '</p></div>';
+}
+
 async function generateSatXml() {
   const btn = document.getElementById('btnGenXml');
   const spinner = document.getElementById('xmlSpinner');
@@ -929,7 +979,7 @@ async function generateSatXml() {
     let result;
     if (source === 'database') {
       const fecha = document.getElementById('xmlFecha').value;
-      result = await apiPost('/api/sat-xml/generate-from-db', { date: fecha });
+      result = await apiPost('/api/sat-xml/generate-from-db', { date: fecha, format: _reportFormat });
     } else {
       const rawData = document.getElementById('xmlRawData').value;
       if (!rawData.trim()) {
@@ -941,6 +991,7 @@ async function generateSatXml() {
         clave_instalacion: document.getElementById('xmlClave').value,
         date: document.getElementById('xmlFecha').value,
         raw_data: rawData,
+        format: _reportFormat,
       });
     }
 
@@ -950,40 +1001,18 @@ async function generateSatXml() {
       return;
     }
 
-    const v = result.validation || {};
-    const products = (v.products || []).map(p =>
-      `<span style="margin-right:8px">${p.clave} (${p.marca}): ${p.tanques} tanques, ${p.dispensarios} disp. ${p.balance_ok ? badge('Balance OK', 'green') : badge('Balance Error', 'red')}</span>`
-    ).join('');
-    const warnings = (v.warnings || []).length > 0
-      ? `<div style="color:var(--orange);font-size:.72rem;margin-top:.4rem"><strong>Advertencias:</strong> ${v.warnings.join('; ')}</div>`
-      : '';
-    const tokens = result.tokens_used
-      ? `<span style="color:var(--g500);font-size:.68rem;margin-left:8px">(${result.tokens_used.input + result.tokens_used.output} tokens)</span>`
-      : '';
-
-    resultDiv.style.display = 'block';
-    resultDiv.innerHTML = `
-      <div style="background:rgba(13,148,136,.1);border:1px solid var(--teal);border-radius:8px;padding:.8rem">
-        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
-          ${badge('XML Generado', 'green')}
-          <strong style="color:var(--w);font-size:.82rem">${result.xml_filename}</strong>
-          ${tokens}
-        </div>
-        <div style="font-size:.72rem;color:var(--g400);margin-bottom:.5rem">
-          <strong>Validacion:</strong> ${v.product_count || 0} productos, ${v.bitacora_count || 0} entradas bitacora
-        </div>
-        <div style="font-size:.72rem;color:var(--g400)">${products}</div>
-        ${warnings}
-        <div style="margin-top:.6rem;display:flex;gap:.5rem">
-          <button class="btn btn-primary" onclick="downloadReport(${result.report_id})" style="background:var(--teal)">
-            Descargar ${result.zip_filename}
-          </button>
-          <button class="btn btn-outline" onclick="sendReport(${result.report_id})">Marcar Enviado al SAT</button>
-        </div>
-        <p style="color:var(--g500);font-size:.68rem;margin-top:.5rem;margin-bottom:0">
-          Sube este .zip al portal SAT: sat.gob.mx/tramites/01116 &rarr; Iniciar &rarr; e.firma &rarr; Adjuntar .zip &rarr; Firmar &rarr; Obtener acuse
-        </p>
-      </div>`;
+    if (result.format === 'ambos' && result.reports) {
+      let ambosHtml = '';
+      result.reports.forEach(r => {
+        if (r.error) ambosHtml += '<div class="form-msg error" style="margin-bottom:.5rem">' + r.format + ': ' + r.error + '</div>';
+        else ambosHtml += renderReportResult(r, r.format);
+      });
+      resultDiv.style.display = 'block';
+      resultDiv.innerHTML = ambosHtml;
+    } else {
+      resultDiv.style.display = 'block';
+      resultDiv.innerHTML = renderReportResult(result, _reportFormat === 'cne' ? 'CNE' : 'SAT');
+    }
 
     // Refresh report list
     setTimeout(() => loadReportes(), 2000);

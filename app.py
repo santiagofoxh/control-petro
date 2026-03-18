@@ -1069,13 +1069,14 @@ def api_generate_sat_xml():
 
     report_date_str = data.get("date")
     report_date = date.fromisoformat(report_date_str) if report_date_str else date.today()
+    report_format = data.get("format", "sat")
 
-    result = sat_xml_generator.generate_sat_xml_with_ai(station_config, raw_data, report_date)
+    result = sat_xml_generator.generate_sat_xml_with_ai(station_config, raw_data, report_date, report_format)
     if result.get("error"):
         return jsonify(result), 500 if "API error" in result["error"] else 400
 
     report = Report(
-        report_type="sat_xml_volumetric",
+        report_type="cne_xml_volumetric" if report_format == "cne" else "sat_xml_volumetric",
         report_date=report_date,
         status="generated",
         file_path=result["zip_path"],

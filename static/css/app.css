@@ -259,6 +259,14 @@ body[data-theme="light"]{background:#f0f4f8;color:#1e293b}
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .fade-in{animation:fadeUp .3s ease-out forwards}
 
+/* Format toggle buttons */
+.fmt-btn{background:var(--navy2);color:var(--g400)}
+.fmt-btn:hover{background:rgba(13,148,136,.15);color:var(--teal)}
+.fmt-btn.fmt-active{background:var(--teal);color:#fff}
+[data-theme="light"] .fmt-btn{background:rgba(0,0,0,.04);color:var(--g500)}
+[data-theme="light"] .fmt-btn:hover{background:rgba(13,148,136,.1);color:var(--teal)}
+[data-theme="light"] .fmt-btn.fmt-active{background:var(--teal);color:#fff}
+
 
 
 /* Profile dropdown */

@@ -94,6 +94,25 @@ CRITICAL RULES:
 OUTPUT: Return ONLY the complete XML document. No markdown, no code fences, no explanation. Just the raw XML starting with <?xml and ending with </Covol:ControlVolumetrico>."""
 
 
+CNE_SYSTEM_PROMPT = """You are an expert Mexican energy regulatory compliance assistant specializing in CNE/CRE reporting for gas stations.
+
+Your job is to generate a COMPLETE, VALID XML report following the CNE/CRE regulatory schema.
+
+CRITICAL RULES:
+1. Use CNE namespace for all elements
+2. Include: station identification, permit details, product volumes, pricing, supplier information
+3. All volumes in liters, prices in MXN
+4. Include daily sales summary by product type (Magna/Premium/Diesel)
+5. Include supplier delivery records with CFDI references
+6. Include inventory opening and closing balances per tank
+7. Product codes: Magna=PEMEX-MAGNA, Premium=PEMEX-PREMIUM, Diesel=PEMEX-DIESEL
+8. Report period: daily (fecha inicio = fecha fin = report date)
+9. Include station geographic coordinates and CRE permit number
+
+OUTPUT: Return ONLY the complete XML document. No markdown, no code fences, no explanation. Just the raw XML starting with <?xml."""
+
+
+
 EXTRACTION_SYSTEM_PROMPT = """Eres un experto en operaciones de estaciones de servicio (gasolineras) en Mexico. Tu trabajo es analizar documentos operativos y extraer datos estructurados para generar reportes SAT de controles volumetricos.
 
 Analiza el documento proporcionado y extrae la siguiente informacion en formato JSON:
@@ -319,7 +338,7 @@ def extract_data_from_file(file_bytes, filename):
         return {"error": f"Error inesperado: {str(e)}"}
 
 
-def generate_sat_xml_with_ai(station_data, raw_data_text, report_date=None):
+def generate_sat_xml_with_ai(station_data, raw_data_text, report_date=None, report_format="sat"):
     """Use Claude to generate SAT-compliant XML from raw station data.
 
     Args:
@@ -339,8 +358,32 @@ def generate_sat_xml_with_ai(station_data, raw_data_text, report_date=None):
     if report_date is None:
         report_date = date.today()
 
-    # Build the user prompt with all context
-    user_prompt = f"""Generate a complete SAT controles volumetricos DAILY XML report for this gas station.
+    # Handle "ambos" by generating both formats
+    if report_format == "ambos":
+        sat_result = generate_sat_xml_with_ai(station_data, raw_data_text, report_date, "sat")
+        cne_result = generate_sat_xml_with_ai(station_data, raw_data_text, report_date, "cne")
+        combined = {"success": True, "reports": [], "format": "ambos"}
+        for r, fmt in [(sat_result, "SAT"), (cne_result, "CNE")]:
+            if r.get("error"):
+                combined["reports"].append({"format": fmt, "error": r["error"]})
+            else:
+                combined["reports"].append({"format": fmt, "xml_filename": r.get("xml_filename"), "zip_filename": r.get("zip_filename"), "validation": r.get("validation"), "tokens_used": r.get("tokens_used"), "report_id": r.get("report_id")})
+        if sat_result.get("success"):
+            combined.update({"xml_filename": sat_result["xml_filename"], "zip_filename": sat_result["zip_filename"], "validation": sat_result.get("validation"), "tokens_used": sat_result.get("tokens_used"), "report_id": sat_result.get("report_id")})
+        return combined
+
+    # Select prompt based on format
+    if report_format == "cne":
+        active_prompt = CNE_SYSTEM_PROMPT
+        format_label = "CNE/CRE regulatory"
+        format_instr = "Generate a COMPLETE CNE/CRE regulatory XML report with station identification, product volumes, pricing, suppliers, and inventory balances."
+    else:
+        active_prompt = SYSTEM_PROMPT
+        format_label = "SAT controles volumetricos"
+        format_instr = "Generate the COMPLETE XML with all products, tanks, dispensarios, recepciones, entregas, existencias, and bitacora. Make sure the volumetric balance validates for every tank."
+
+        # Build the user prompt with all context
+    user_prompt = f"""Generate a complete {format_label} DAILY XML report for this gas station.
 
 STATION CONFIGURATION:
 - RFC: {station_data.get('rfc', 'GAZ850101ABC')}
@@ -359,7 +402,7 @@ REPORT DATE: {report_date.isoformat()}
 RAW OPERATIONAL DATA:
 {raw_data_text}
 
-Generate the COMPLETE XML with all products, tanks, dispensarios, recepciones, entregas, existencias, and bitacora. Make sure the volumetric balance validates for every tank."""
+{format_instr}"""
 
     try:
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -367,7 +410,7 @@ Generate the COMPLETE XML with all products, tanks, dispensarios, recepciones, e
         message = client.messages.create(
             model="claude-opus-4-6",
             max_tokens=16000,
-            system=SYSTEM_PROMPT,
+            system=active_prompt,
             messages=[
                 {"role": "user", "content": user_prompt}
             ]
@@ -455,8 +498,9 @@ Return ONLY raw XML starting with <?xml - no markdown, no code fences, no explan
         clave = station_data.get('clave_instalacion', 'EDS-0001')
         date_str = report_date.strftime('%Y%m%d')
 
-        xml_filename = f"{rfc}_{clave}_{date_str}_DIA.xml"
-        zip_filename = f"{rfc}_{clave}_{date_str}_DIA.xml.zip"
+        fmt_tag = "CNE" if report_format == "cne" else "SAT"
+        xml_filename = f"{rfc}_{clave}_{date_str}_{fmt_tag}_DIA.xml"
+        zip_filename = f"{rfc}_{clave}_{date_str}_{fmt_tag}_DIA.xml.zip"
 
         report_dir = os.path.join(os.path.dirname(__file__), "generated_reports")
         os.makedirs(report_dir, exist_ok=True)

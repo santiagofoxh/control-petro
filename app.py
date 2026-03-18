@@ -874,7 +874,7 @@ def api_report_history():
 
 
 @app.route("/api/reports/download/<int:report_id>")
-@require_auth
+@optional_auth
 def api_download_report(report_id):
     report = Report.query.get_or_404(report_id)
     if not report.file_path or not os.path.exists(report.file_path):
@@ -883,7 +883,7 @@ def api_download_report(report_id):
 
 
 @app.route("/api/reports/send/<int:report_id>", methods=["POST"])
-@require_auth
+@optional_auth
 def api_send_report(report_id):
     success = reports.mark_report_sent(report_id)
     if success:
@@ -1131,7 +1131,7 @@ def api_generate_sat_xml_from_db():
 
 
 @app.route("/api/sat-xml/download/<int:report_id>")
-@require_auth
+@optional_auth
 def api_download_sat_xml(report_id):
     report = Report.query.get_or_404(report_id)
     if not report.file_path or not os.path.exists(report.file_path):

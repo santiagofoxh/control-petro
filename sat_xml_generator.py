@@ -399,12 +399,56 @@ Generate the COMPLETE XML with all products, tanks, dispensarios, recepciones, e
         # Validate XML is well-formed
         validation = validate_xml(xml_content)
 
+        # If invalid, retry once with error feedback to let AI fix its mistake
         if not validation["valid"]:
-            return {
-                "error": f"Generated XML is not well-formed: {validation['error']}",
-                "xml_content": xml_content,
-                "validation": validation,
-            }
+            retry_prompt = f"""The XML you generated has a validation error:
+{validation['error']}
+
+Here is the beginning of the malformed XML:
+{xml_content[:3000]}
+
+Please regenerate the COMPLETE corrected XML from scratch.
+Return ONLY raw XML starting with <?xml - no markdown, no code fences, no explanation."""
+
+            retry_msg = client.messages.create(
+                model="claude-opus-4-5-20251101",
+                max_tokens=16000,
+                system=SYSTEM_PROMPT,
+                messages=[
+                    {"role": "user", "content": user_prompt},
+                    {"role": "assistant", "content": xml_content[:3000]},
+                    {"role": "user", "content": retry_prompt}
+                ]
+            )
+
+            xml_content = retry_msg.content[0].text.strip()
+
+            # Clean retry response
+            fence_match = re.search(r'```(?:xml)?\s*\n(.*?)```', xml_content, re.DOTALL)
+            if fence_match:
+                xml_content = fence_match.group(1).strip()
+            else:
+                xml_start = xml_content.find('<?xml')
+                if xml_start == -1:
+                    xml_start = xml_content.find('<ControlesVolumetricos')
+                if xml_start == -1:
+                    xml_start = xml_content.find('<covol:')
+                if xml_start > 0:
+                    xml_content = xml_content[xml_start:]
+
+            last_close = xml_content.rfind('>')
+            if last_close != -1 and last_close < len(xml_content) - 1:
+                xml_content = xml_content[:last_close + 1]
+
+            # Validate retry result
+            validation = validate_xml(xml_content)
+            if not validation["valid"]:
+                return {
+                    "error": f"Generated XML is not well-formed after retry: {validation['error']}",
+                    "xml_content": xml_content,
+                    "validation": validation,
+                }
+
 
         # Save and zip
         rfc = station_data.get('rfc', 'GAZ850101ABC')

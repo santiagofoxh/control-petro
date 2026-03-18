@@ -60,6 +60,12 @@
         Estaciones
       </a>
     </nav>
+    <div class="sidebar-razon" id="razonSelector" style="display:none">
+      <div class="razon-label">Razon Social</div>
+      <select id="razonSelect" onchange="onRazonChange(this.value)">
+        <option value="">Todas las Razones</option>
+      </select>
+    </div>
     <div class="sidebar-user" id="sidebarUser" onclick="toggleProfileMenu(event)">
       <div class="user-avatar" id="userAvatar">--</div>
       <div class="user-info">

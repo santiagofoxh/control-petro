@@ -377,6 +377,42 @@ def api_create_razon():
     return jsonify({"success": True, "id": razon.id}), 201
 
 
+
+# ------------------------------------------------------------------ #
+#  API: Razones Sociales (public — for the selector dropdown)
+# ------------------------------------------------------------------ #
+@app.route("/api/razones-sociales")
+@optional_auth
+def api_razones_sociales():
+    """Return list of Razones Sociales accessible to current user."""
+    station_ids = get_accessible_station_ids()
+    if station_ids:
+        razon_ids = db.session.query(Station.razon_social_id).filter(
+            Station.id.in_(station_ids), Station.razon_social_id.isnot(None)
+        ).distinct().all()
+        razon_ids = [r[0] for r in razon_ids]
+    else:
+        razon_ids = []
+
+    razones = RazonSocial.query.filter(RazonSocial.id.in_(razon_ids)).order_by(RazonSocial.name).all()
+    return jsonify([{
+        "id": r.id,
+        "name": r.name,
+        "rfc": r.rfc,
+        "station_count": Station.query.filter_by(razon_social_id=r.id, active=True).count(),
+    } for r in razones])
+
+
+def _apply_razon_filter(station_ids):
+    """If ?razon_id= is in the request, narrow station_ids to that razon social."""
+    razon_id = request.args.get("razon_id", type=int)
+    if razon_id and station_ids:
+        razon_station_ids = [s.id for s in Station.query.filter_by(
+            razon_social_id=razon_id, active=True
+        ).all()]
+        return [sid for sid in station_ids if sid in razon_station_ids]
+    return station_ids
+
 # ------------------------------------------------------------------ #
 # API: Dashboard (now scope-filtered)
 # ------------------------------------------------------------------ #
@@ -387,7 +423,7 @@ def api_dashboard():
     today = date.today()
     start = datetime.combine(today, datetime.min.time())
     end = datetime.combine(today, datetime.max.time())
-    station_ids = get_accessible_station_ids()
+    station_ids = _apply_razon_filter(get_accessible_station_ids())
 
     # Total liters sold today (scoped)
     sold_query = db.session.query(
@@ -481,7 +517,7 @@ def api_dashboard():
 def api_sales_chart():
     days = request.args.get("days", 7, type=int)
     today = date.today()
-    station_ids = get_accessible_station_ids()
+    station_ids = _apply_razon_filter(get_accessible_station_ids())
 
     result = []
     for d in range(days - 1, -1, -1):
@@ -514,7 +550,7 @@ def api_sales_chart():
 @optional_auth
 def api_stations():
     today = date.today()
-    station_ids = get_accessible_station_ids()
+    station_ids = _apply_razon_filter(get_accessible_station_ids())
     stations = Station.query.filter(Station.id.in_(station_ids)).order_by(Station.code).all() if station_ids else []
 
     result = []
@@ -566,7 +602,7 @@ def api_stations():
 @app.route("/api/stations/<int:station_id>")
 @require_auth
 def api_station_detail(station_id):
-    station_ids = get_accessible_station_ids()
+    station_ids = _apply_razon_filter(get_accessible_station_ids())
     if station_id not in station_ids:
         return jsonify({"error": "No tienes acceso a esta estacion."}), 403
 
@@ -603,7 +639,7 @@ def api_station_detail(station_id):
 @optional_auth
 def api_inventory_summary():
     today = date.today()
-    station_ids = get_accessible_station_ids()
+    station_ids = _apply_razon_filter(get_accessible_station_ids())
     summary = {"magna": 0, "premium": 0, "diesel": 0, "total_capacity": {"magna": 0, "premium": 0, "diesel": 0}}
 
     stations = Station.query.filter(Station.id.in_(station_ids)).all() if station_ids else []
@@ -624,7 +660,7 @@ def api_inventory_summary():
 def api_inventory_history():
     days = request.args.get("days", 7, type=int)
     today = date.today()
-    station_ids = get_accessible_station_ids()
+    station_ids = _apply_razon_filter(get_accessible_station_ids())
 
     result = []
     for d in range(days - 1, -1, -1):
@@ -679,7 +715,7 @@ def api_record_transaction():
             return jsonify({"error": f"Missing field: {field}"}), 400
 
     # Check access
-    station_ids = get_accessible_station_ids()
+    station_ids = _apply_razon_filter(get_accessible_station_ids())
     if data["station_id"] not in station_ids:
         return jsonify({"error": "No tienes acceso a esta estacion."}), 403
 
@@ -825,7 +861,7 @@ def api_forecast():
 @app.route("/api/predictions/station/<int:station_id>/<fuel_type>")
 @require_auth
 def api_station_prediction(station_id, fuel_type):
-    station_ids = get_accessible_station_ids()
+    station_ids = _apply_razon_filter(get_accessible_station_ids())
     if station_id not in station_ids:
         return jsonify({"error": "No tienes acceso a esta estacion."}), 403
 
@@ -858,7 +894,7 @@ def api_station_prediction(station_id, fuel_type):
 @optional_auth
 def api_alerts():
     today = date.today()
-    station_ids = get_accessible_station_ids()
+    station_ids = _apply_razon_filter(get_accessible_station_ids())
     alerts = []
 
     stations = Station.query.filter(Station.id.in_(station_ids)).all() if station_ids else []
@@ -1049,7 +1085,7 @@ def api_openclaw_webhook():
 
     if action == "get_summary":
         # Return a text-friendly summary for WhatsApp
-        station_ids = get_accessible_station_ids()
+        station_ids = _apply_razon_filter(get_accessible_station_ids())
         today = date.today()
         start = datetime.combine(today, datetime.min.time())
         end = datetime.combine(today, datetime.max.time())

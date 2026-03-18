@@ -413,6 +413,81 @@ def _apply_razon_filter(station_ids):
         return [sid for sid in station_ids if sid in razon_station_ids]
     return station_ids
 
+
+
+@app.route("/api/razones-sociales", methods=["POST"])
+@optional_auth
+def api_create_razon_public():
+    """Create a new Razon Social."""
+    data = request.get_json() or {}
+    name = data.get("name", "").strip()
+    rfc = data.get("rfc", "").strip()
+    if not name:
+        return jsonify({"error": "Nombre es requerido."}), 400
+    org = Organization.query.first()
+    if not org:
+        org = Organization(name="Default", slug="default")
+        db.session.add(org)
+        db.session.commit()
+    razon = RazonSocial(name=name, rfc=rfc or "XAXX010101000", organization_id=org.id)
+    db.session.add(razon)
+    db.session.commit()
+    return jsonify({"success": True, "id": razon.id, "name": razon.name}), 201
+
+
+@app.route("/api/razones-sociales/<int:razon_id>", methods=["PUT"])
+@optional_auth
+def api_update_razon_public(razon_id):
+    """Update a Razon Social name/RFC."""
+    razon = RazonSocial.query.get_or_404(razon_id)
+    data = request.get_json() or {}
+    if "name" in data and data["name"].strip():
+        razon.name = data["name"].strip()
+    if "rfc" in data:
+        razon.rfc = data["rfc"].strip()
+    db.session.commit()
+    return jsonify({"success": True, "id": razon.id, "name": razon.name})
+
+
+@app.route("/api/razones-sociales/<int:razon_id>", methods=["DELETE"])
+@optional_auth
+def api_delete_razon_public(razon_id):
+    """Delete a Razon Social. Unassigns its stations first."""
+    razon = RazonSocial.query.get_or_404(razon_id)
+    Station.query.filter_by(razon_social_id=razon_id).update({"razon_social_id": None})
+    db.session.delete(razon)
+    db.session.commit()
+    return jsonify({"success": True})
+
+
+@app.route("/api/razones-sociales/<int:razon_id>/stations", methods=["PUT"])
+@optional_auth
+def api_set_razon_stations(razon_id):
+    """Set which stations belong to this Razon Social."""
+    RazonSocial.query.get_or_404(razon_id)
+    data = request.get_json() or {}
+    station_ids = data.get("station_ids", [])
+    Station.query.filter_by(razon_social_id=razon_id).update({"razon_social_id": None})
+    if station_ids:
+        Station.query.filter(Station.id.in_(station_ids)).update(
+            {"razon_social_id": razon_id}, synchronize_session="fetch")
+    db.session.commit()
+    return jsonify({"success": True, "station_count": Station.query.filter_by(razon_social_id=razon_id).count()})
+
+
+@app.route("/api/razones-sociales/detail")
+@optional_auth
+def api_razones_detail():
+    """Return razones with their assigned station IDs for the management UI."""
+    razones = RazonSocial.query.order_by(RazonSocial.name).all()
+    all_stations = Station.query.filter_by(active=True).order_by(Station.name).all()
+    return jsonify({
+        "razones": [{"id": r.id, "name": r.name, "rfc": r.rfc,
+            "station_ids": [s.id for s in Station.query.filter_by(razon_social_id=r.id, active=True).all()],
+        } for r in razones],
+        "all_stations": [{"id": s.id, "code": s.code, "name": s.name, "razon_social_id": s.razon_social_id} for s in all_stations],
+    })
+
 # ------------------------------------------------------------------ #
 # API: Dashboard (now scope-filtered)
 # ------------------------------------------------------------------ #

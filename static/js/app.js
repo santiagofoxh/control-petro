@@ -954,7 +954,7 @@ function renderReportResult(result, formatLabel) {
     : 'Sube este .zip al portal SAT: sat.gob.mx/tramites/01116';
   const sendLabel = formatLabel === 'CNE' ? 'Marcar Enviado al CNE' : 'Marcar Enviado al SAT';
   return '<div style="background:rgba(13,148,136,.1);border:1px solid var(--teal);border-radius:8px;padding:.8rem;margin-bottom:.5rem;position:relative">'
-      <button onclick="this.parentElement.parentElement.style.display='none'" style="position:absolute;top:6px;right:8px;background:none;border:none;color:var(--g500);font-size:1.1rem;cursor:pointer;line-height:1;padding:2px 6px" title="Cerrar">&times;</button>
+      + '<button onclick="this.parentElement.parentElement.style.display=\'none\'" style="position:absolute;top:6px;right:8px;background:none;border:none;color:var(--g500);font-size:1.1rem;cursor:pointer;line-height:1;padding:2px 6px" title="Cerrar">&times;</button>'
     + '<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">'
     + badge(formatLabel + ' Generado','green')
     + '<strong style="color:var(--w);font-size:.82rem">' + result.xml_filename + '</strong>' + tokens + '</div>'

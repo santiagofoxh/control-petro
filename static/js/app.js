@@ -443,7 +443,7 @@ async function loadReportes() {
 
     <div class="panel" style="border:1px solid var(--teal);background:linear-gradient(135deg, rgba(13,148,136,.08), rgba(13,148,136,.02))">
       <div class="panel-header">
-        <span class="panel-title" style="color:var(--teal)">Generar Reporte con IA (Opus 4.6)</span>
+        <span class="panel-title" style="color:var(--teal)">Generar Reporte con IA (Loti)</span>
       </div>
       <p style="color:var(--g400);font-size:.78rem;margin-bottom:.8rem">Sube tus datos operativos y Claude genera el XML validado listo para enviar al SAT o CNE via el portal de controles volumetricos.</p>
       <div id="satXmlForm">
@@ -545,7 +545,7 @@ TANQUE DIESEL (TQ-0003):
 
         <div style="display:flex;gap:.5rem;align-items:center">
           <button class="btn btn-primary" onclick="generateSatXml()" id="btnGenXml" style="background:var(--teal);padding:10px 24px;font-size:.82rem">
-            Generar XML con Opus 4.6
+            Generar XML con Loti
           </button>
           <span id="xmlSpinner" style="display:none;color:var(--teal);font-size:.78rem">
             <span class="spinner" style="width:16px;height:16px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px"></span>
@@ -934,7 +934,7 @@ function setReportFormat(fmt) {
   const btn = document.getElementById('btnGenXml');
   if (btn) {
     const labels = {sat:'Generar XML SAT',cne:'Generar Reporte CNE',ambos:'Generar SAT + CNE'};
-    btn.textContent = labels[fmt] || 'Generar XML con Opus 4.6';
+    btn.textContent = labels[fmt] || 'Generar XML con Loti';
   }
 }
 

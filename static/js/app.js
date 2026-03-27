@@ -994,6 +994,13 @@ async function extractFromDocument() {
         </p>
       </div>`;
 
+    // Auto-confirm and generate if confidence is sufficient
+    // Skip the manual review step — go straight to XML generation
+    setTimeout(function() {
+      try { confirmExtractedData(); } catch(err) { console.log('Auto-confirm skipped:', err); }
+    }, 500);
+
+
   } catch(e) {
     resultDiv.style.display = 'block';
     resultDiv.innerHTML = `<div class="form-msg error">${e.message}</div>`;

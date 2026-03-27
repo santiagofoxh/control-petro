@@ -191,10 +191,10 @@ def generate_order_recommendations(horizon_hours=72):
                 "recommended_date": delivery_dt.isoformat(),
                 "urgency": urgency,
                 "days_until_empty": round(days_left, 1),
-                "avg_daily_demand": demand["avg_daily"],
-                "confidence": demand["confidence"],
+                "avg_daily_demand": float(demand["avg_daily"]),
+                "confidence": float(demand["confidence"]),
                 "reason": reason,
-                "trend": demand["trend"],
+                "trend": float(demand["trend"]),
             }
             recommendations.append(rec)
 
@@ -202,10 +202,10 @@ def generate_order_recommendations(horizon_hours=72):
             pred = Prediction(
                 station_id=station.id,
                 fuel_type=fuel_type,
-                recommended_liters=order_liters,
+                recommended_liters=float(order_liters),
                 recommended_date=delivery_dt,
                 urgency=urgency,
-                confidence=demand["confidence"],
+                confidence=float(demand["confidence"]),
                 reason=reason,
             )
             db.session.add(pred)

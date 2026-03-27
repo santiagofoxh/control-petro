@@ -374,10 +374,10 @@ def seed_mgdemo():
     db.session.flush()
 
     # --- Update mgdemo user ---
-    mgdemo_user = User.query.filter_by(email="mgdemo").first()
+    mgdemo_user = User.query.filter_by(username="mgdemo").first()
     if not mgdemo_user:
         mgdemo_user = User.query.filter(
-            (User.name == "mgdemo") | (User.email.like("%mgdemo%"))
+            (User.name.like("%mgdemo%")) | (User.email.like("%mgdemo%"))
         ).first()
     if mgdemo_user:
         mgdemo_user.organization_id = org.id
@@ -387,7 +387,8 @@ def seed_mgdemo():
         mgdemo_user.assigned_stations = stations
     else:
         mgdemo_user = User(
-            email="mgdemo",
+            username="mgdemo",
+            email="mgdemo@controlpetro.com",
             password_hash=hash_password("hdcb1352"),
             name="MG Demo Admin",
             role="org_admin",

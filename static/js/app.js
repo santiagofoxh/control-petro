@@ -113,6 +113,8 @@ function destroyCharts() {
 let _serviceToken = localStorage.getItem('cp-auth-token') || '';
 
 async function fetchServiceToken() {
+  // Skip service token if user has their own JWT
+  try { if (localStorage.getItem('cp_token')) return; } catch(e) {}
   try {
     const r = await fetch('/api/demo-config');
     if (r.ok) {
@@ -130,7 +132,14 @@ fetchServiceToken();
 
 function getApiHeaders() {
   const h = { 'Content-Type': 'application/json' };
-  if (_serviceToken) h['Authorization'] = 'Bearer ' + _serviceToken;
+  // Prefer user JWT over service token for org-scoped access
+  let tk = null;
+  try { tk = localStorage.getItem('cp_token'); } catch(e) {}
+  if (tk) {
+    h['Authorization'] = 'Bearer ' + tk;
+  } else if (_serviceToken) {
+    h['Authorization'] = 'Bearer ' + _serviceToken;
+  }
   return h;
 }
 
@@ -1399,6 +1408,7 @@ document.addEventListener('click', function() {
 function doLogout() {
   try { window['local' + 'Storage'].removeItem('cp_' + 'token'); } catch(e) {}
   try { window['local' + 'Storage'].removeItem('cp_' + 'user'); } catch(e) {}
+  try { window['local' + 'Storage'].removeItem('cp-auth-token'); } catch(e) {}
   window.location.href = '/login';
 }
 

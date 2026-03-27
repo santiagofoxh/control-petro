@@ -1046,6 +1046,13 @@
       max-height: 90vh;
       overflow-y: auto;
     }
+  
+    .features-grid { grid-template-columns: 1fr; gap: 16px; }
+    .feature-card { padding: 20px; }
+    .section-title { font-size: 24px; }
+    .section-desc { font-size: 15px; padding: 0 10px; }
+    #comercializadora { padding-top: 3rem !important; padding-bottom: 3rem !important; }
+    #comercializadora .features-grid { gap: 12px; }
   }
 
   /* Extra small screens */
@@ -1216,25 +1223,25 @@
 <section class="features" id="comercializadora" style="padding-top:5rem;padding-bottom:5rem;background:linear-gradient(180deg,#f8fafc 0%,#f0fdf4 100%)">
   <div class="section-label" style="color:#F97316">Nuevo</div>
   <h2 class="section-title">Control Petro para Comercializadora</h2>
-  <p class="section-desc">La plataforma integral para distribuidores de combustible en Mexico. Gestiona ordenes, coordina con Pemex e importadores, y organiza tus entregas automaticamente.</p>
+  <p class="section-desc">La plataforma integral para distribuidores de combustible en México. Gestiona órdenes, coordina con Pemex e importadores, y organiza tus entregas automáticamente.</p>
 
   <div class="features-grid">
     <div class="feature-card" style="border-left:3px solid #F97316">
       <div class="feature-icon" style="background:rgba(249,115,22,0.1)">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#F97316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
       </div>
-      <h3>Ordenes via WhatsApp y Email</h3>
-      <p>Recibe ordenes de compra de tus clientes por WhatsApp o correo. La IA extrae automaticamente cliente, producto, volumen y fecha de entrega.</p>
-      <a href="/demo" class="feature-link">Conocer mas <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></a>
+      <h3>Órdenes vía WhatsApp y Email</h3>
+      <p>Recibe órdenes de compra de tus clientes por WhatsApp o correo. La IA extrae automáticamenteautomáticamente cliente, producto, volumen y fecha de entrega.</p>
+      <a href="/article?feature=comercializadora-ordenes" class="feature-link">Conocer más <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></a>
     </div>
 
     <div class="feature-card" style="border-left:3px solid #0D9488">
       <div class="feature-icon" style="background:rgba(13,148,136,0.1)">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#0D9488" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
       </div>
-      <h3>Coordinacion con Pemex e Importadores</h3>
-      <p>Consulta disponibilidad de slots en terminales PEMEX o terminales de importacion en la frontera. Reserva espacios de carga automaticamente.</p>
-      <a href="/demo" class="feature-link">Conocer mas <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></a>
+      <h3>Coordinación con Pemex e Importadores</h3>
+      <p>Consulta disponibilidad de slots en terminales PEMEX o terminales de importación en la frontera. Reserva espacios de carga automáticamente.</p>
+      <a href="/article?feature=comercializadora-pemex" class="feature-link">Conocer más <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></a>
     </div>
 
     <div class="feature-card" style="border-left:3px solid #EC4899">
@@ -1243,7 +1250,7 @@
       </div>
       <h3>Calendario Inteligente de Entregas</h3>
       <p>Visualiza todas tus entregas en un calendario semanal. Optimiza rutas, evita conflictos de horario y maximiza la capacidad de tus pipas.</p>
-      <a href="/demo" class="feature-link">Conocer mas <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></a>
+      <a href="/article?feature=comercializadora-calendario" class="feature-link">Conocer más <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></a>
     </div>
 
     <div class="feature-card" style="border-left:3px solid #6366F1">
@@ -1251,13 +1258,13 @@
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#6366F1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
       </div>
       <h3>Control de Operaciones en Tiempo Real</h3>
-      <p>Dashboard con KPIs en tiempo real: ordenes pendientes, confirmadas, en transito. Prioridades, estados y trazabilidad completa de cada entrega.</p>
-      <a href="/demo" class="feature-link">Conocer mas <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></a>
+      <p>Dashboard con KPIs en tiempo real: órdenes pendientes, confirmadas, en tránsito. Prioridades, estados y trazabilidad completa de cada entrega.</p>
+      <a href="/article?feature=comercializadora-operaciones" class="feature-link">Conocer más <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></a>
     </div>
   </div>
 
   <div style="text-align:center;margin-top:2.5rem">
-    <a href="/demo" class="btn-primary btn-large" style="background:linear-gradient(135deg,#F97316,#EA580C)">Explorar Comercializadora <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"/></svg></a>
+    <a href="/article?feature=comercializadora-flujo" class="btn-primary btn-large" style="background:linear-gradient(135deg,#F97316,#EA580C)">Explorar Comercializadora <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"/></svg></a>
   </div>
 </section>
 

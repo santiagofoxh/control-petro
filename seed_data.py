@@ -384,7 +384,7 @@ def seed_mgdemo():
         mgdemo_user.razon_social_id = razon_norte.id
         mgdemo_user.role = "org_admin"
         mgdemo_user.approved_by_admin = True
-        mgdemo_user.stations = stations
+        mgdemo_user.assigned_stations = stations
     else:
         mgdemo_user = User(
             email="mgdemo",
@@ -396,7 +396,7 @@ def seed_mgdemo():
         )
         db.session.add(mgdemo_user)
         db.session.flush()
-        mgdemo_user.stations = stations
+        mgdemo_user.assigned_stations = stations
 
     # --- Generate 30 days of mock transactions ---
     DEMAND = {

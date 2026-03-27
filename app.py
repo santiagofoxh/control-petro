@@ -1215,13 +1215,21 @@ def init_db():
                 reports.generate_price_report()
                 print("Database initialized with demo data and reports.")
                 # Also seed MG Demo
-                from seed_data import seed_mgdemo
-                seed_mgdemo()
+                try:
+                    from seed_data import seed_mgdemo
+                    seed_mgdemo()
+                except Exception as e:
+                    print(f"Warning: seed_mgdemo failed: {e}")
+                    db.session.rollback()
             else:
                 print("PostgreSQL database ready.")
             # Seed MG Demo if not yet present
-            from seed_data import seed_mgdemo
-            seed_mgdemo()
+            try:
+                from seed_data import seed_mgdemo
+                seed_mgdemo()
+            except Exception as e:
+                print(f"Warning: seed_mgdemo failed: {e}")
+                db.session.rollback()
         else:
             # SQLite: check if db file exists
             db_path = os.path.join(BASE_DIR, "controlpetro.db")

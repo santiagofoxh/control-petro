@@ -857,7 +857,10 @@ async function extractFromDocument() {
   try {
     const formData = new FormData();
     formData.append('file', uploadedFile);
-    const extractHeaders = getApiHeaders();
+    const allHeaders = getApiHeaders();
+    const extractHeaders = {};
+    // Only pass Authorization for file uploads — Content-Type must be auto-set for multipart
+    if (allHeaders['Authorization']) extractHeaders['Authorization'] = allHeaders['Authorization'];
 
     const resp = await fetch('/api/sat-xml/extract', {
       method: 'POST',

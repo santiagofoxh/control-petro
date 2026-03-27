@@ -132,7 +132,7 @@ def generate_order_recommendations(horizon_hours=72):
             if not demand:
                 continue
 
-            capacity = getattr(station, f"{fuel_type}_capacity", 40000)
+            capacity = getattr(station, f"{fuel_type}_capacity", None) or 40000
             current_pct = (inv["liters"] / capacity * 100) if capacity > 0 else 0
             days_left = calculate_days_until_empty(
                 inv["liters"], demand["avg_daily"], 0.15, capacity

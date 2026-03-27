@@ -921,8 +921,14 @@ def api_generate_all_reports():
 @optional_auth
 def api_recommendations():
     hours = request.args.get("hours", 72, type=int)
-    recs = predictions.generate_order_recommendations(horizon_hours=hours)
-    return jsonify(recs)
+    try:
+        recs = predictions.generate_order_recommendations(horizon_hours=hours)
+        return jsonify(recs)
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        app.logger.error("recommendations error: %s\n%s", e, tb)
+        return jsonify({"error": str(e), "traceback": tb}), 500
 
 
 @app.route("/api/predictions/forecast")

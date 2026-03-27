@@ -583,6 +583,45 @@ TANQUE DIESEL (TQ-0003):
       </div>
     </div>
 
+    <!-- Fast Report Generator -->
+    <div class="card" style="margin-top:16px; border: 1px solid var(--accent-teal);">
+      <div class="card-header" style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:1.3em;">&#9889;</span>
+        <h3 style="margin:0; color:var(--accent-teal);">Reporte R\u00e1pido</h3>
+        <span class="badge" style="background:var(--accent-teal);color:#fff;font-size:0.7em;padding:2px 8px;border-radius:8px;">Nuevo</span>
+      </div>
+      <p style="color:var(--text-secondary);font-size:0.85em;margin:4px 0 12px;">Genera reportes SAT/CNE en segundos sin IA. Opci\u00f3n de env\u00edo por email.</p>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;">
+        <div>
+          <label style="font-size:0.8em;color:var(--text-secondary);">Formato</label>
+          <select id="fast-format" style="display:block;padding:6px 10px;border-radius:6px;border:1px solid var(--border-color);background:var(--card-bg);color:var(--text-primary);margin-top:4px;">
+            <option value="xml">XML (SAT Anexo 30)</option>
+            <option value="json">JSON</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:0.8em;color:var(--text-secondary);">Alcance</label>
+          <select id="fast-scope" style="display:block;padding:6px 10px;border-radius:6px;border:1px solid var(--border-color);background:var(--card-bg);color:var(--text-primary);margin-top:4px;">
+            <option value="sat">SAT</option>
+            <option value="cne">CNE</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:0.8em;color:var(--text-secondary);">Fecha</label>
+          <input type="date" id="fast-date" style="display:block;padding:6px 10px;border-radius:6px;border:1px solid var(--border-color);background:var(--card-bg);color:var(--text-primary);margin-top:4px;">
+        </div>
+        <button class="btn btn-teal" onclick="generateFastReport()" id="btn-fast-report">&#9889; Generar R\u00e1pido</button>
+      </div>
+      <div style="display:flex;gap:12px;align-items:end;margin-top:12px;">
+        <div style="flex:1;">
+          <label style="font-size:0.8em;color:var(--text-secondary);">Email (opcional)</label>
+          <input type="email" id="fast-email" placeholder="correo@ejemplo.com" style="display:block;width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--border-color);background:var(--card-bg);color:var(--text-primary);margin-top:4px;">
+        </div>
+        <button class="btn btn-pink" onclick="emailFastReport()" id="btn-email-report">&#9993; Enviar por Email</button>
+      </div>
+      <div id="fast-report-result" style="margin-top:12px;"></div>
+    </div>
+
     <div class="panel" id="reportGenMsg" style="display:none"></div>
 
     <div class="panel">
@@ -648,6 +687,101 @@ async function sendReport(id) {
   await apiPost(`/api/reports/send/${id}`, {});
   loadReportes();
 }
+
+async function generateFastReport() {
+  var btn = document.getElementById('btn-fast-report');
+  var resultDiv = document.getElementById('fast-report-result');
+  var fmt = document.getElementById('fast-format').value;
+  var scope = document.getElementById('fast-scope').value;
+  var dateVal = document.getElementById('fast-date').value;
+  
+  btn.disabled = true;
+  btn.textContent = 'Generando...';
+  resultDiv.innerHTML = '<p style="color:var(--accent-teal);">Generando reporte...</p>';
+
+  try {
+    var body = {format: fmt, scope: scope};
+    if (dateVal) body.date = dateVal;
+    
+    var resp = await fetch('/api/reports/fast', {
+      method: 'POST',
+      headers: getApiHeaders(),
+      body: JSON.stringify(body)
+    });
+    var data = await resp.json();
+    
+    if (data.error) {
+      resultDiv.innerHTML = '<p style="color:var(--accent-pink);">Error: ' + data.error + '</p>';
+      return;
+    }
+
+    var html = '<div style="background:rgba(13,148,136,0.1);border:1px solid var(--accent-teal);border-radius:8px;padding:12px;">';
+    html += '<p style="color:var(--accent-teal);font-weight:600;margin:0 0 8px;">Reporte generado en ' + data.elapsed_seconds + 's</p>';
+    html += '<p style="margin:4px 0;font-size:0.85em;">Archivo: ' + data.filename + '</p>';
+    html += '<p style="margin:4px 0;font-size:0.85em;">Estaciones: ' + data.station_count + ' | Formato: ' + data.format.toUpperCase() + '</p>';
+    if (data.total_sold) {
+      html += '<p style="margin:4px 0;font-size:0.85em;">Vendidos: ' + Math.round(data.total_sold).toLocaleString() + 'L | Recibidos: ' + Math.round(data.total_received).toLocaleString() + 'L</p>';
+    }
+    html += '<a href="/api/reports/fast/download/' + data.report_id + '" class="btn btn-teal" style="margin-top:8px;display:inline-block;text-decoration:none;font-size:0.85em;" download>Descargar</a>';
+    html += '</div>';
+    resultDiv.innerHTML = html;
+    
+    loadReportes();
+  } catch(e) {
+    resultDiv.innerHTML = '<p style="color:var(--accent-pink);">Error: ' + e.message + '</p>';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '\u26a1 Generar R\u00e1pido';
+  }
+}
+
+async function emailFastReport() {
+  var btn = document.getElementById('btn-email-report');
+  var resultDiv = document.getElementById('fast-report-result');
+  var emailInput = document.getElementById('fast-email');
+  var email = emailInput.value.trim();
+  var fmt = document.getElementById('fast-format').value;
+  var scope = document.getElementById('fast-scope').value;
+  var dateVal = document.getElementById('fast-date').value;
+
+  if (!email) {
+    resultDiv.innerHTML = '<p style="color:var(--accent-pink);">Ingresa un correo electr\u00f3nico.</p>';
+    emailInput.focus();
+    return;
+  }
+  
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+  resultDiv.innerHTML = '<p style="color:var(--accent-teal);">Generando y enviando reporte...</p>';
+
+  try {
+    var body = {format: fmt, scope: scope, email: email};
+    if (dateVal) body.date = dateVal;
+    
+    var resp = await fetch('/api/reports/email', {
+      method: 'POST',
+      headers: getApiHeaders(),
+      body: JSON.stringify(body)
+    });
+    var data = await resp.json();
+    
+    if (data.error || data.email_error) {
+      resultDiv.innerHTML = '<p style="color:var(--accent-pink);">Error: ' + (data.error || data.email_error) + '</p>';
+      return;
+    }
+
+    resultDiv.innerHTML = '<div style="background:rgba(13,148,136,0.1);border:1px solid var(--accent-teal);border-radius:8px;padding:12px;">' +
+      '<p style="color:var(--accent-teal);font-weight:600;margin:0;">Reporte enviado a ' + data.email.sent_to + '</p>' +
+      '<p style="margin:4px 0;font-size:0.85em;">Archivo: ' + data.report.filename + ' (' + data.report.station_count + ' estaciones)</p>' +
+      '</div>';
+  } catch(e) {
+    resultDiv.innerHTML = '<p style="color:var(--accent-pink);">Error: ' + e.message + '</p>';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '\u2709 Enviar por Email';
+  }
+}
+
 
 // ----------------------------------------------------------------
 //  SAT XML Generation

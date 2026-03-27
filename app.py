@@ -22,6 +22,7 @@ from auth import (
 import reports
 import predictions
 import sat_xml_generator
+import report_fast
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -1183,6 +1184,98 @@ def api_openclaw_webhook():
         })
 
     return jsonify({"error": f"Unknown action: {action}"}), 400
+
+
+# ------------------------------------------------------------------ #
+# API: Fast Report Generation (template-based, <5s)
+# ------------------------------------------------------------------ #
+
+@app.route("/api/reports/fast", methods=["POST"])
+@optional_auth
+def api_fast_report():
+    """Generate SAT/CNE report using fast template engine (no AI).
+    Body: {date, format: "xml"|"json", scope: "sat"|"cne"|"ambos"}
+    """
+    data = request.json or {}
+    report_date_str = data.get("date")
+    report_date = date.fromisoformat(report_date_str) if report_date_str else date.today()
+    output_format = data.get("format", "xml")
+    report_scope = data.get("scope", "sat")
+
+    station_ids = _apply_razon_filter(get_accessible_station_ids())
+    if not station_ids:
+        return jsonify({"error": "No hay estaciones accesibles."}), 400
+
+    import time
+    t0 = time.time()
+    result = report_fast.generate_fast_report(
+        station_ids, report_date, output_format, report_scope
+    )
+    elapsed = round(time.time() - t0, 2)
+
+    if result.get("error"):
+        return jsonify(result), 400
+
+    result["elapsed_seconds"] = elapsed
+    return jsonify(result)
+
+
+@app.route("/api/reports/fast/download/<int:report_id>")
+@optional_auth
+def api_fast_download(report_id):
+    """Download a fast-generated report file."""
+    report = Report.query.get_or_404(report_id)
+    if not report.file_path or not os.path.exists(report.file_path):
+        abort(404)
+    return send_file(report.file_path, as_attachment=True,
+                     download_name=os.path.basename(report.file_path))
+
+
+@app.route("/api/reports/email", methods=["POST"])
+@require_auth
+def api_email_report():
+    """Generate a report and send it via email.
+    Body: {date, format, scope, email}
+    """
+    data = request.json or {}
+    to_email = data.get("email", "").strip()
+    if not to_email:
+        return jsonify({"error": "Campo 'email' requerido."}), 400
+
+    report_date_str = data.get("date")
+    report_date = date.fromisoformat(report_date_str) if report_date_str else date.today()
+    output_format = data.get("format", "xml")
+    report_scope = data.get("scope", "sat")
+
+    station_ids = _apply_razon_filter(get_accessible_station_ids())
+    if not station_ids:
+        return jsonify({"error": "No hay estaciones accesibles."}), 400
+
+    result = report_fast.generate_fast_report(
+        station_ids, report_date, output_format, report_scope
+    )
+    if result.get("error"):
+        return jsonify(result), 400
+
+    email_result = report_fast.send_report_email(
+        to_email=to_email,
+        report_filepath=result["filepath"],
+        report_filename=result["filename"],
+        report_date=report_date,
+        station_count=result["station_count"],
+    )
+    if email_result.get("error"):
+        return jsonify({"report": result, "email_error": email_result["error"]}), 500
+
+    return jsonify({
+        "success": True,
+        "report": {
+            "report_id": result["report_id"],
+            "filename": result["filename"],
+            "station_count": result["station_count"],
+        },
+        "email": email_result,
+    })
 
 
 # ------------------------------------------------------------------ #

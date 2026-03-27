@@ -94,6 +94,7 @@ function navigate(page) {
     prediccion: 'Prediccion IA',
     registrar: 'Registrar Movimiento',
     estaciones: 'Estaciones',
+    comercializadora: 'Comercializadora',
   };
   document.getElementById('pageTitle').textContent = titles[page] || page;
   document.getElementById('sidebar').classList.remove('open');
@@ -1504,6 +1505,164 @@ function chartOpts(opts = {}) {
 }
 
 // ----------------------------------------------------------------
+//  Comercializadora - Fuel Distribution Management
+// ----------------------------------------------------------------
+let _comercializadoraOrders = [];
+let _comercializadoraSlots = [];
+
+function loadComercializadora() {
+  fetchComercializadoraData().then(() => renderComercializadora());
+}
+
+async function fetchComercializadoraData() {
+  try {
+    const headers = getApiHeaders();
+    const [ordersResp, slotsResp] = await Promise.all([
+      fetch('/api/comercializadora/orders', { headers }).then(r => r.ok ? r.json() : { orders: [] }),
+      fetch('/api/comercializadora/slots', { headers }).then(r => r.ok ? r.json() : { slots: [] })
+    ]);
+    _comercializadoraOrders = ordersResp.orders || getDemoOrders();
+    _comercializadoraSlots = slotsResp.slots || getDemoSlots();
+  } catch(e) {
+    _comercializadoraOrders = getDemoOrders();
+    _comercializadoraSlots = getDemoSlots();
+  }
+}
+
+function getDemoOrders() {
+  const today = new Date();
+  const fmt = d => d.toISOString().split('T')[0];
+  const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
+  return [
+    { id: 'OC-001', client: 'Gasolinera El Sol', fuel_type: 'magna', liters: 20000, status: 'confirmed', delivery_date: fmt(addDays(today, 1)), source: 'whatsapp', pemex_slot: '07:00-09:00', priority: 'high', created: fmt(addDays(today, -1)) },
+    { id: 'OC-002', client: 'Estacion Norte', fuel_type: 'diesel', liters: 15000, status: 'pending', delivery_date: fmt(addDays(today, 2)), source: 'email', pemex_slot: null, priority: 'medium', created: fmt(today) },
+    { id: 'OC-003', client: 'Combustibles Juarez', fuel_type: 'premium', liters: 10000, status: 'confirmed', delivery_date: fmt(addDays(today, 1)), source: 'whatsapp', pemex_slot: '10:00-12:00', priority: 'medium', created: fmt(addDays(today, -2)) },
+    { id: 'OC-004', client: 'GasExpress Chihuahua', fuel_type: 'magna', liters: 25000, status: 'in_transit', delivery_date: fmt(today), source: 'email', pemex_slot: '06:00-08:00', priority: 'high', created: fmt(addDays(today, -3)) },
+    { id: 'OC-005', client: 'Red de Gasolineras MX', fuel_type: 'diesel', liters: 30000, status: 'delivered', delivery_date: fmt(addDays(today, -1)), source: 'whatsapp', pemex_slot: '14:00-16:00', priority: 'low', created: fmt(addDays(today, -4)) },
+    { id: 'OC-006', client: 'Petro Frontera', fuel_type: 'magna', liters: 18000, status: 'pending', delivery_date: fmt(addDays(today, 3)), source: 'whatsapp', pemex_slot: null, priority: 'high', created: fmt(today) },
+    { id: 'OC-007', client: 'Import Fuel TX', fuel_type: 'premium', liters: 12000, status: 'confirmed', delivery_date: fmt(addDays(today, 2)), source: 'import_us', pemex_slot: '09:00-11:00', priority: 'medium', created: fmt(addDays(today, -1)) },
+  ];
+}
+function getDemoSlots() {
+  const today = new Date();
+  const fmt = d => d.toISOString().split('T')[0];
+  const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
+  return [
+    { date: fmt(today), time: '06:00-08:00', terminal: 'PEMEX TAR Juarez', status: 'occupied', order_id: 'OC-004' },
+    { date: fmt(addDays(today, 1)), time: '07:00-09:00', terminal: 'PEMEX TAR Juarez', status: 'reserved', order_id: 'OC-001' },
+    { date: fmt(addDays(today, 1)), time: '10:00-12:00', terminal: 'PEMEX TAR Juarez', status: 'reserved', order_id: 'OC-003' },
+    { date: fmt(addDays(today, 1)), time: '14:00-16:00', terminal: 'PEMEX TAR Juarez', status: 'available', order_id: null },
+    { date: fmt(addDays(today, 2)), time: '07:00-09:00', terminal: 'PEMEX TAR Juarez', status: 'available', order_id: null },
+    { date: fmt(addDays(today, 2)), time: '09:00-11:00', terminal: 'Import Terminal El Paso', status: 'reserved', order_id: 'OC-007' },
+    { date: fmt(addDays(today, 2)), time: '10:00-12:00', terminal: 'PEMEX TAR Juarez', status: 'available', order_id: null },
+    { date: fmt(addDays(today, 2)), time: '14:00-16:00', terminal: 'PEMEX TAR Juarez', status: 'available', order_id: null },
+    { date: fmt(addDays(today, 3)), time: '07:00-09:00', terminal: 'PEMEX TAR Juarez', status: 'available', order_id: null },
+    { date: fmt(addDays(today, 3)), time: '10:00-12:00', terminal: 'PEMEX TAR Juarez', status: 'available', order_id: null },
+  ];
+}
+function renderComercializadora() {
+  const orders = _comercializadoraOrders;
+  const slots = _comercializadoraSlots;
+  const pending = orders.filter(o => o.status === 'pending').length;
+  const confirmed = orders.filter(o => o.status === 'confirmed').length;
+  const inTransit = orders.filter(o => o.status === 'in_transit').length;
+  const totalLiters = orders.filter(o => o.status !== 'delivered').reduce((s, o) => s + o.liters, 0);
+  const availableSlots = slots.filter(s => s.status === 'available').length;
+  const statusColors = { pending: 'var(--orange)', confirmed: 'var(--green)', in_transit: 'var(--teal)', delivered: 'var(--g500)' };
+  const statusLabels = { pending: 'Pendiente', confirmed: 'Confirmada', in_transit: 'En Transito', delivered: 'Entregada' };
+  const sourceLabels = { whatsapp: 'WhatsApp', email: 'Email', import_us: 'Import USA' };
+  const priorityColors = { high: 'var(--red)', medium: 'var(--orange)', low: 'var(--g500)' };
+
+  // Build calendar view - next 7 days
+  const today = new Date();
+  const dayNames = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
+  let calendarHtml = '';
+  for (let d = 0; d < 7; d++) {
+    const date = new Date(today); date.setDate(date.getDate() + d);
+    const dateStr = date.toISOString().split('T')[0];
+    const daySlots = slots.filter(s => s.date === dateStr);
+    const dayOrders = orders.filter(o => o.delivery_date === dateStr && o.status !== 'delivered');
+    const isToday = d === 0;
+    let slotsHtml = '';
+    if (daySlots.length > 0) {
+      daySlots.forEach(s => {
+        const order = s.order_id ? orders.find(o => o.id === s.order_id) : null;
+        const slotColor = s.status === 'available' ? 'rgba(13,148,136,.15)' : s.status === 'reserved' ? 'rgba(249,115,22,.15)' : 'rgba(239,68,68,.15)';
+        const slotBorder = s.status === 'available' ? 'var(--teal)' : s.status === 'reserved' ? 'var(--orange)' : 'var(--red)';
+        const slotLabel = s.status === 'available' ? 'Disponible' : s.status === 'reserved' ? (order ? order.client : 'Reservado') : (order ? order.client : 'Ocupado');
+        const fuelBadge = order ? '<span style="background:' + (order.fuel_type === 'magna' ? '#22c55e' : order.fuel_type === 'premium' ? '#ef4444' : '#eab308') + ';color:#000;padding:1px 6px;border-radius:8px;font-size:.6rem;font-weight:700;margin-left:4px">' + FUEL_LABELS[order.fuel_type] + '</span>' : '';
+        const litersInfo = order ? '<div style="color:var(--g400);font-size:.65rem;margin-top:2px">' + order.liters.toLocaleString() + ' L' + fuelBadge + '</div>' : '';
+        slotsHtml += '<div style="background:' + slotColor + ';border-left:3px solid ' + slotBorder + ';border-radius:4px;padding:4px 8px;margin-bottom:4px;font-size:.7rem"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-weight:600;color:var(--w)">' + s.time + '</span><span style="color:' + slotBorder + ';font-size:.65rem">' + slotLabel + '</span></div>' + litersInfo + '<div style="color:var(--g500);font-size:.6rem;margin-top:1px">' + s.terminal + '</div></div>';
+      });
+    }
+    dayOrders.filter(o => !daySlots.some(s => s.order_id === o.id)).forEach(o => {
+      slotsHtml += '<div style="background:rgba(249,115,22,.08);border-left:3px solid var(--orange);border-radius:4px;padding:4px 8px;margin-bottom:4px;font-size:.7rem"><div style="color:var(--orange);font-weight:600">Sin slot</div><div style="color:var(--w);font-size:.68rem">' + o.client + ' - ' + o.liters.toLocaleString() + ' L ' + FUEL_LABELS[o.fuel_type] + '</div></div>';
+    });
+    if (!slotsHtml) slotsHtml = '<div style="color:var(--g600);font-size:.7rem;text-align:center;padding:8px">Sin actividad</div>';
+    calendarHtml += '<div style="flex:1;min-width:160px;background:var(--card);border:1px solid ' + (isToday ? 'var(--teal)' : 'var(--g700)') + ';border-radius:8px;padding:8px;' + (isToday ? 'box-shadow:0 0 0 1px var(--teal)' : '') + '"><div style="text-align:center;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--g700)"><div style="font-size:.7rem;color:' + (isToday ? 'var(--teal)' : 'var(--g400)') + ';font-weight:600">' + dayNames[date.getDay()] + (isToday ? ' (Hoy)' : '') + '</div><div style="font-size:.85rem;font-weight:700;color:var(--w)">' + date.getDate() + ' ' + date.toLocaleDateString('es-MX', {month: 'short'}) + '</div></div>' + slotsHtml + '</div>';
+  }
+  // Build orders table rows
+  let ordersHtml = '';
+  orders.sort((a, b) => { const p = {high:0,medium:1,low:2}; return p[a.priority] - p[b.priority]; });
+  orders.forEach(o => {
+    const fuelColor = o.fuel_type === 'magna' ? '#22c55e' : o.fuel_type === 'premium' ? '#ef4444' : '#eab308';
+    ordersHtml += '<tr><td><span style="font-weight:600;color:var(--teal)">' + o.id + '</span></td><td>' + o.client + '</td><td><span style="background:' + fuelColor + ';color:#000;padding:2px 8px;border-radius:10px;font-size:.7rem;font-weight:700">' + FUEL_LABELS[o.fuel_type] + '</span></td><td style="font-weight:600">' + o.liters.toLocaleString() + ' L</td><td><span style="color:' + (statusColors[o.status] || 'var(--g400)') + ';font-weight:600;font-size:.75rem">' + (statusLabels[o.status] || o.status) + '</span></td><td>' + new Date(o.delivery_date + 'T00:00:00').toLocaleDateString('es-MX', {day:'numeric',month:'short'}) + '</td><td>' + (o.pemex_slot || '<span style="color:var(--orange)">Pendiente</span>') + '</td><td style="font-size:.75rem">' + (sourceLabels[o.source] || o.source) + '</td><td style="text-align:center"><span style="color:' + (priorityColors[o.priority] || 'var(--g400)') + '">&#9679;</span></td></tr>';
+  });
+
+  const html = '<div class="kpi-grid">' +
+    '<div class="kpi"><div class="kpi-icon" style="background:var(--orange)">OC</div><div class="kpi-value" style="color:var(--orange)">' + pending + '</div><div class="kpi-label">Ordenes Pendientes</div></div>' +
+    '<div class="kpi"><div class="kpi-icon" style="background:var(--green)">OK</div><div class="kpi-value" style="color:var(--green)">' + confirmed + '</div><div class="kpi-label">Confirmadas</div></div>' +
+    '<div class="kpi"><div class="kpi-icon" style="background:var(--teal)">TR</div><div class="kpi-value" style="color:var(--teal)">' + inTransit + '</div><div class="kpi-label">En Transito</div></div>' +
+    '<div class="kpi"><div class="kpi-icon" style="background:var(--blue)">L</div><div class="kpi-value" style="color:var(--blue)">' + totalLiters.toLocaleString() + '<span style="font-size:.5em;color:var(--g400)"> L</span></div><div class="kpi-label">Litros por Entregar</div></div>' +
+  '</div>' +
+
+  '<div class="panel" style="margin-top:1rem"><div class="panel-header"><h3>Calendario de Entregas &mdash; Proximos 7 Dias</h3><div style="display:flex;gap:12px;align-items:center;font-size:.72rem"><span style="color:var(--teal)">&#9632; Disponible</span><span style="color:var(--orange)">&#9632; Reservado</span><span style="color:var(--red)">&#9632; Ocupado</span></div></div><div style="display:flex;gap:8px;overflow-x:auto;padding:4px 0">' + calendarHtml + '</div></div>' +
+
+  '<div class="panel" style="margin-top:1rem"><div class="panel-header"><h3>Nueva Orden de Compra</h3></div>' +
+  '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.6rem;margin-bottom:.8rem">' +
+  '<div class="form-group"><label class="form-label">Cliente</label><input class="form-input" id="cmrzClient" placeholder="Nombre del cliente"></div>' +
+  '<div class="form-group"><label class="form-label">Combustible</label><select class="form-select" id="cmrzFuel"><option value="magna">Magna</option><option value="premium">Premium</option><option value="diesel">Diesel</option></select></div>' +
+  '<div class="form-group"><label class="form-label">Litros</label><input type="number" class="form-input" id="cmrzLiters" placeholder="20000"></div>' +
+  '<div class="form-group"><label class="form-label">Fecha Entrega</label><input type="date" class="form-input" id="cmrzDate"></div>' +
+  '<div class="form-group"><label class="form-label">Fuente</label><select class="form-select" id="cmrzSource"><option value="whatsapp">WhatsApp</option><option value="email">Email</option><option value="import_us">Importacion USA</option></select></div>' +
+  '<div class="form-group"><label class="form-label">Prioridad</label><select class="form-select" id="cmrzPriority"><option value="high">Alta</option><option value="medium">Media</option><option value="low">Baja</option></select></div>' +
+  '</div><div style="display:flex;gap:.5rem"><button class="btn btn-primary" onclick="addComercializadoraOrder()" style="padding:8px 20px;font-size:.8rem">Registrar Orden</button><button class="btn btn-outline" onclick="requestPemexSlot()" style="padding:8px 16px;font-size:.78rem">Solicitar Slot PEMEX</button></div></div>' +
+
+  '<div class="panel" style="margin-top:1rem"><div class="panel-header"><h3>Ordenes de Compra</h3><span style="color:var(--g400);font-size:.75rem">' + orders.length + ' ordenes</span></div><div class="table-wrap"><table><thead><tr><th>Orden</th><th>Cliente</th><th>Producto</th><th>Volumen</th><th>Estado</th><th>Entrega</th><th>Slot</th><th>Canal</th><th>P</th></tr></thead><tbody>' + ordersHtml + '</tbody></table></div></div>';
+
+  showContent(html);
+}
+function addComercializadoraOrder() {
+  const client = document.getElementById('cmrzClient').value;
+  const fuel = document.getElementById('cmrzFuel').value;
+  const liters = parseInt(document.getElementById('cmrzLiters').value);
+  const date = document.getElementById('cmrzDate').value;
+  const source = document.getElementById('cmrzSource').value;
+  const priority = document.getElementById('cmrzPriority').value;
+  if (!client || !liters || !date) { alert('Completa todos los campos: Cliente, Litros y Fecha.'); return; }
+  const newOrder = { id: 'OC-' + String(_comercializadoraOrders.length + 1).padStart(3, '0'), client, fuel_type: fuel, liters, status: 'pending', delivery_date: date, source, pemex_slot: null, priority, created: new Date().toISOString().split('T')[0] };
+  _comercializadoraOrders.push(newOrder);
+  const headers = getApiHeaders();
+  fetch('/api/comercializadora/orders', { method: 'POST', headers, body: JSON.stringify(newOrder) }).catch(() => {});
+  renderComercializadora();
+}
+
+function requestPemexSlot() {
+  const pendingNoSlot = _comercializadoraOrders.filter(o => o.status === 'pending' && !o.pemex_slot);
+  if (pendingNoSlot.length === 0) { alert('No hay ordenes pendientes sin slot asignado.'); return; }
+  const available = _comercializadoraSlots.filter(s => s.status === 'available');
+  if (available.length === 0) { alert('No hay slots disponibles. Intenta mas tarde.'); return; }
+  const order = pendingNoSlot[0];
+  const slot = available[0];
+  slot.status = 'reserved';
+  slot.order_id = order.id;
+  order.pemex_slot = slot.time;
+  order.status = 'confirmed';
+  order.delivery_date = slot.date;
+  renderComercializadora();
+}
+
+// ----------------------------------------------------------------
 //  Router
 // ----------------------------------------------------------------
 function loadPage(page) {
@@ -1514,6 +1673,7 @@ function loadPage(page) {
     prediccion: loadPrediccion,
     registrar: loadRegistrar,
     estaciones: loadEstaciones,
+    comercializadora: loadComercializadora,
   };
   (loaders[page] || loadDashboard)();
 }

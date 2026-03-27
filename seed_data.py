@@ -292,3 +292,184 @@ def seed_database():
 
     print(f"Seeding complete. {len(stations)} stations with 30 days of data.")
     return len(stations)
+
+
+
+def seed_mgdemo():
+    """Seed the MG Demo organization with 10 stations and mock data."""
+    from database import db, Organization, RazonSocial, User, Station, FuelTransaction, InventorySnapshot
+    from auth import hash_password
+    import random
+    from datetime import datetime, date, timedelta
+
+    # Check if already seeded
+    existing = Organization.query.filter_by(slug="mgdemo").first()
+    if existing:
+        print("MG Demo already seeded, skipping.")
+        return 0
+
+    # --- Organization ---
+    org = Organization(name="MG Combustibles", slug="mgdemo")
+    db.session.add(org)
+    db.session.flush()
+
+    # --- Razones Sociales ---
+    razon_norte = RazonSocial(
+        organization_id=org.id,
+        name="MG Combustibles Norte",
+        rfc="MCN230101AA1",
+        legal_name="MG Combustibles del Norte SA de CV",
+    )
+    razon_sur = RazonSocial(
+        organization_id=org.id,
+        name="MG Combustibles Sur",
+        rfc="MCS230101BB2",
+        legal_name="MG Combustibles del Sur SA de CV",
+    )
+    db.session.add_all([razon_norte, razon_sur])
+    db.session.flush()
+
+    # --- 10 Stations in Monterrey ---
+    MG_STATIONS = [
+        {"code": "MG-CTR", "name": "MG Centro", "address": "Av. Constitucion 1500, Centro",
+         "lat": 25.6714, "lng": -100.3090, "mc": 50000, "pc": 25000, "dc": 45000, "razon": "norte"},
+        {"code": "MG-GAR", "name": "MG Garza Sada", "address": "Av. Eugenio Garza Sada 4200",
+         "lat": 25.6300, "lng": -100.2880, "mc": 55000, "pc": 30000, "dc": 50000, "razon": "norte"},
+        {"code": "MG-SPN", "name": "MG San Pedro Norte", "address": "Av. Vasconcelos 1200, San Pedro",
+         "lat": 25.6600, "lng": -100.3560, "mc": 45000, "pc": 30000, "dc": 35000, "razon": "norte"},
+        {"code": "MG-LIN", "name": "MG Lincoln", "address": "Av. Lincoln 3800, Col. Mitras",
+         "lat": 25.7050, "lng": -100.3350, "mc": 50000, "pc": 25000, "dc": 40000, "razon": "norte"},
+        {"code": "MG-UNI", "name": "MG Universidad", "address": "Av. Universidad 1000, San Nicolas",
+         "lat": 25.7460, "lng": -100.2870, "mc": 60000, "pc": 25000, "dc": 55000, "razon": "norte"},
+        {"code": "MG-SUR", "name": "MG Contry", "address": "Av. Lazaro Cardenas 2500, Contry",
+         "lat": 25.6480, "lng": -100.3150, "mc": 45000, "pc": 20000, "dc": 40000, "razon": "sur"},
+        {"code": "MG-APO", "name": "MG Apodaca", "address": "Blvd. Miguel de la Madrid 500, Apodaca",
+         "lat": 25.7720, "lng": -100.2100, "mc": 55000, "pc": 20000, "dc": 60000, "razon": "sur"},
+        {"code": "MG-ESC", "name": "MG Escobedo", "address": "Carr. a Laredo Km 15, Escobedo",
+         "lat": 25.7980, "lng": -100.3200, "mc": 50000, "pc": 20000, "dc": 55000, "razon": "sur"},
+        {"code": "MG-GPE", "name": "MG Guadalupe", "address": "Av. Eloy Cavazos 3200, Guadalupe",
+         "lat": 25.6770, "lng": -100.2540, "mc": 45000, "pc": 25000, "dc": 40000, "razon": "sur"},
+        {"code": "MG-STA", "name": "MG Santa Catarina", "address": "Carr. Saltillo 2000, Santa Catarina",
+         "lat": 25.6730, "lng": -100.4580, "mc": 50000, "pc": 20000, "dc": 50000, "razon": "sur"},
+    ]
+
+    stations = []
+    for s in MG_STATIONS:
+        razon = razon_norte if s["razon"] == "norte" else razon_sur
+        station = Station(
+            code=s["code"],
+            name=s["name"],
+            address=s["address"],
+            city="Monterrey",
+            state="Nuevo Leon",
+            latitude=s["lat"],
+            longitude=s["lng"],
+            magna_capacity=s["mc"],
+            premium_capacity=s["pc"],
+            diesel_capacity=s["dc"],
+            razon_social_id=razon.id,
+        )
+        db.session.add(station)
+        stations.append(station)
+    db.session.flush()
+
+    # --- Update mgdemo user ---
+    mgdemo_user = User.query.filter_by(email="mgdemo").first()
+    if not mgdemo_user:
+        mgdemo_user = User.query.filter(
+            (User.name == "mgdemo") | (User.email.like("%mgdemo%"))
+        ).first()
+    if mgdemo_user:
+        mgdemo_user.organization_id = org.id
+        mgdemo_user.razon_social_id = razon_norte.id
+        mgdemo_user.role = "org_admin"
+        mgdemo_user.approved_by_admin = True
+        mgdemo_user.stations = stations
+    else:
+        mgdemo_user = User(
+            email="mgdemo",
+            password_hash=hash_password("hdcb1352"),
+            name="MG Demo Admin",
+            role="org_admin",
+            organization_id=org.id,
+            approved_by_admin=True,
+        )
+        db.session.add(mgdemo_user)
+        db.session.flush()
+        mgdemo_user.stations = stations
+
+    # --- Generate 30 days of mock transactions ---
+    DEMAND = {
+        "MG-CTR": {"magna": (4000, 700), "premium": (1500, 400), "diesel": (3000, 600)},
+        "MG-GAR": {"magna": (4500, 800), "premium": (2000, 500), "diesel": (3500, 700)},
+        "MG-SPN": {"magna": (3000, 500), "premium": (2500, 600), "diesel": (2000, 400)},
+        "MG-LIN": {"magna": (3500, 600), "premium": (1200, 300), "diesel": (2800, 500)},
+        "MG-UNI": {"magna": (5000, 900), "premium": (1500, 400), "diesel": (4000, 800)},
+        "MG-SUR": {"magna": (3200, 550), "premium": (1000, 250), "diesel": (2500, 500)},
+        "MG-APO": {"magna": (4200, 750), "premium": (800, 200), "diesel": (4500, 900)},
+        "MG-ESC": {"magna": (3800, 650), "premium": (900, 220), "diesel": (4000, 800)},
+        "MG-GPE": {"magna": (3000, 500), "premium": (1100, 280), "diesel": (2500, 500)},
+        "MG-STA": {"magna": (3500, 600), "premium": (800, 200), "diesel": (3500, 700)},
+    }
+    PRICES = {"magna": 19.25, "premium": 21.10, "diesel": 23.00}
+    today = date.today()
+    start_date = today - timedelta(days=30)
+
+    for station in stations:
+        demand_profile = DEMAND.get(station.code, {"magna": (3500, 600), "premium": (1200, 300), "diesel": (2800, 500)})
+        for ft in ["magna", "premium", "diesel"]:
+            cap = {"magna": station.magna_capacity, "premium": station.premium_capacity, "diesel": station.diesel_capacity}[ft]
+            inventory = cap * random.uniform(0.5, 0.8)
+            mean_demand, std_demand = demand_profile[ft]
+
+            current_date = start_date
+            while current_date <= today:
+                daily_demand = max(500, random.gauss(mean_demand, std_demand))
+
+                # Delivery if below 40%
+                if inventory < cap * 0.4:
+                    delivery = cap * random.uniform(0.5, 0.7)
+                    ts = datetime.combine(current_date, datetime.min.time().replace(
+                        hour=random.choice([5, 6, 7]), minute=random.randint(0, 59)
+                    ))
+                    tx = FuelTransaction(
+                        station_id=station.id, fuel_type=ft, transaction_type="received",
+                        liters=round(delivery, 1),
+                        price_per_liter={"magna": 17.80, "premium": 19.60, "diesel": 21.40}[ft],
+                        timestamp=ts, source="web",
+                    )
+                    db.session.add(tx)
+                    inventory += delivery
+
+                # Sales across the day
+                remaining = daily_demand
+                for bh in [8, 12, 16, 20]:
+                    pct = {8: 0.25, 12: 0.30, 16: 0.28, 20: 0.17}[bh]
+                    block = remaining * pct * random.uniform(0.9, 1.1)
+                    block = min(block, inventory)
+                    if block > 0:
+                        ts = datetime.combine(current_date, datetime.min.time().replace(
+                            hour=bh, minute=random.randint(0, 59)
+                        ))
+                        tx = FuelTransaction(
+                            station_id=station.id, fuel_type=ft, transaction_type="sold",
+                            liters=round(block, 1), price_per_liter=PRICES[ft],
+                            timestamp=ts, source="web",
+                        )
+                        db.session.add(tx)
+                        inventory -= block
+                    inventory = max(0, inventory)
+
+                # End-of-day snapshot
+                snap = InventorySnapshot(
+                    station_id=station.id, fuel_type=ft,
+                    liters_on_hand=round(inventory, 1), capacity=cap,
+                    snapshot_date=current_date,
+                )
+                db.session.add(snap)
+                current_date += timedelta(days=1)
+
+        db.session.commit()
+
+    print(f"MG Demo seeded: {len(stations)} stations with 30 days of data.")
+    return len(stations)

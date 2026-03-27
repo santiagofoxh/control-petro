@@ -1349,6 +1349,144 @@ def init_db():
                 print("Database ready. New tables created if needed.")
 
 
+
+# ============================================================
+# Comercializadora API Endpoints
+# ============================================================
+
+comercializadora_orders = []
+comercializadora_slots = []
+
+def init_comercializadora_demo_data():
+    """Initialize demo data for Comercializadora if empty."""
+    global comercializadora_orders, comercializadora_slots
+    if not comercializadora_orders:
+        from datetime import datetime, timedelta
+        today = datetime.now()
+        comercializadora_orders = [
+            {"id": 1, "client": "Gasolinera del Norte", "fuel_type": "magna", "liters": 15000, "date": (today + timedelta(days=1)).strftime("%Y-%m-%d"), "status": "confirmed", "source": "whatsapp", "priority": "high", "slot_id": 1, "notes": "Entrega matutina"},
+            {"id": 2, "client": "Estacion Sur Express", "fuel_type": "premium", "liters": 8000, "date": (today + timedelta(days=1)).strftime("%Y-%m-%d"), "status": "pending", "source": "email", "priority": "medium", "slot_id": None, "notes": ""},
+            {"id": 3, "client": "Pemex Juarez Centro", "fuel_type": "diesel", "liters": 20000, "date": (today + timedelta(days=2)).strftime("%Y-%m-%d"), "status": "in_transit", "source": "whatsapp", "priority": "high", "slot_id": 3, "notes": "Pipa #42"},
+            {"id": 4, "client": "Gasolinera Reforma", "fuel_type": "magna", "liters": 12000, "date": (today + timedelta(days=2)).strftime("%Y-%m-%d"), "status": "pending", "source": "email", "priority": "low", "slot_id": None, "notes": ""},
+            {"id": 5, "client": "Estacion Tecnologico", "fuel_type": "magna", "liters": 18000, "date": (today + timedelta(days=3)).strftime("%Y-%m-%d"), "status": "confirmed", "source": "whatsapp", "priority": "high", "slot_id": 5, "notes": "Cliente frecuente"},
+            {"id": 6, "client": "Red Gasolinera Chihuahua", "fuel_type": "premium", "liters": 10000, "date": today.strftime("%Y-%m-%d"), "status": "delivered", "source": "whatsapp", "priority": "medium", "slot_id": 6, "notes": "Entregado 08:30"},
+            {"id": 7, "client": "Combustibles del Valle", "fuel_type": "diesel", "liters": 25000, "date": (today + timedelta(days=4)).strftime("%Y-%m-%d"), "status": "pending", "source": "email", "priority": "high", "slot_id": None, "notes": "Importacion US"}
+        ]
+        comercializadora_slots = []
+        for i in range(1, 11):
+            day_offset = (i - 1) // 3
+            slot_date = (today + timedelta(days=day_offset)).strftime("%Y-%m-%d")
+            hour = 7 + ((i - 1) % 3) * 3
+            terminal = ["Pemex TAR Juarez", "Pemex TAR Chihuahua", "Import Terminal El Paso", "Pemex TAR Juarez"][day_offset % 4]
+            status = "available"
+            if i <= 3:
+                status = "reserved" if i % 2 == 0 else "occupied"
+            elif i <= 6:
+                status = "available" if i % 2 == 0 else "reserved"
+            comercializadora_slots.append({
+                "id": i,
+                "terminal": terminal,
+                "date": slot_date,
+                "time": f"{hour:02d}:00",
+                "capacity_liters": 20000,
+                "status": status,
+                "order_id": i if status == "occupied" else None
+            })
+
+init_comercializadora_demo_data()
+
+
+@app.route("/api/comercializadora/orders", methods=["GET"])
+@require_auth
+def get_comercializadora_orders():
+    """Get all comercializadora orders."""
+    init_comercializadora_demo_data()
+    status_filter = request.args.get("status")
+    orders = comercializadora_orders
+    if status_filter:
+        orders = [o for o in orders if o["status"] == status_filter]
+    return jsonify({"orders": orders, "total": len(orders)})
+
+
+@app.route("/api/comercializadora/orders", methods=["POST"])
+@require_auth
+def create_comercializadora_order():
+    """Create a new comercializadora order."""
+    init_comercializadora_demo_data()
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+    required = ["client", "fuel_type", "liters", "date"]
+    missing = [f for f in required if f not in data]
+    if missing:
+        return jsonify({"error": f"Missing fields: {', '.join(missing)}"}), 400
+    new_id = max((o["id"] for o in comercializadora_orders), default=0) + 1
+    order = {
+        "id": new_id,
+        "client": data["client"],
+        "fuel_type": data["fuel_type"],
+        "liters": data["liters"],
+        "date": data["date"],
+        "status": "pending",
+        "source": data.get("source", "manual"),
+        "priority": data.get("priority", "medium"),
+        "slot_id": None,
+        "notes": data.get("notes", "")
+    }
+    comercializadora_orders.append(order)
+    return jsonify({"success": True, "order": order}), 201
+
+
+@app.route("/api/comercializadora/slots", methods=["GET"])
+@require_auth
+def get_comercializadora_slots():
+    """Get terminal delivery slots."""
+    init_comercializadora_demo_data()
+    date_filter = request.args.get("date")
+    slots = comercializadora_slots
+    if date_filter:
+        slots = [s for s in slots if s["date"] == date_filter]
+    return jsonify({"slots": slots, "total": len(slots)})
+
+
+@app.route("/api/comercializadora/slots/reserve", methods=["POST"])
+@require_auth
+def reserve_comercializadora_slot():
+    """Reserve a slot for an order."""
+    init_comercializadora_demo_data()
+    data = request.get_json()
+    if not data or "slot_id" not in data or "order_id" not in data:
+        return jsonify({"error": "slot_id and order_id required"}), 400
+    slot = next((s for s in comercializadora_slots if s["id"] == data["slot_id"]), None)
+    if not slot:
+        return jsonify({"error": "Slot not found"}), 404
+    if slot["status"] != "available":
+        return jsonify({"error": "Slot not available"}), 409
+    order = next((o for o in comercializadora_orders if o["id"] == data["order_id"]), None)
+    if not order:
+        return jsonify({"error": "Order not found"}), 404
+    slot["status"] = "reserved"
+    slot["order_id"] = data["order_id"]
+    order["slot_id"] = data["slot_id"]
+    order["status"] = "confirmed"
+    return jsonify({"success": True, "slot": slot, "order": order})
+
+
+@app.route("/api/comercializadora/orders/<int:order_id>", methods=["PATCH"])
+@require_auth
+def update_comercializadora_order(order_id):
+    """Update an order status."""
+    init_comercializadora_demo_data()
+    data = request.get_json()
+    order = next((o for o in comercializadora_orders if o["id"] == order_id), None)
+    if not order:
+        return jsonify({"error": "Order not found"}), 404
+    for field in ["status", "notes", "priority", "slot_id"]:
+        if field in data:
+            order[field] = data[field]
+    return jsonify({"success": True, "order": order})
+
+
 init_db()
 
 if __name__ == "__main__":

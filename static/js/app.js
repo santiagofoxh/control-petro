@@ -180,8 +180,13 @@ function updateSidebarUser() {
   const avatarEl = document.getElementById('userAvatar');
   if (!nameEl) return;
   const totalStations = _razonesList.reduce((sum, r) => sum + r.station_count, 0);
-  nameEl.textContent = 'Demo GazPro';
-  avatarEl.textContent = 'DG';
+  // Use actual user info from localStorage if available
+  let userData = null;
+  try { const raw = localStorage.getItem('cp_user'); if (raw) userData = JSON.parse(raw); } catch(e) {}
+  const displayName = userData ? userData.name : 'Demo GazPro';
+  nameEl.textContent = displayName;
+  const nameParts = displayName.split(' ');
+  avatarEl.textContent = nameParts.length > 1 ? (nameParts[0][0] + nameParts[1][0]).toUpperCase() : nameParts[0].substring(0,2).toUpperCase();
   if (_selectedRazonId) {
     const r = _razonesList.find(r => r.id == _selectedRazonId);
     roleEl.textContent = r ? r.name + ' (' + r.station_count + ' est.)' : totalStations + ' estaciones activas';

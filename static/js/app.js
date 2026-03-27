@@ -845,15 +845,11 @@ function clearUploadedFile() {
 }
 
 async function extractFromDocument() {
-  if (!uploadedFile) {
-    alert('Selecciona un archivo primero.');
-    return;
-  }
+  if (!uploadedFile) { alert('Selecciona un archivo primero.'); return; }
 
   const btn = document.getElementById('btnExtract');
   const spinner = document.getElementById('extractSpinner');
   const resultDiv = document.getElementById('xmlExtractResult');
-
   btn.disabled = true;
   spinner.style.display = 'inline';
   resultDiv.style.display = 'none';
@@ -861,11 +857,14 @@ async function extractFromDocument() {
   try {
     const formData = new FormData();
     formData.append('file', uploadedFile);
-
     const extractHeaders = getApiHeaders();
-    const resp = await fetch('/api/sat-xml/extract', { method: 'POST', headers: extractHeaders, body: formData });
-    const result = await resp.json();
 
+    const resp = await fetch('/api/sat-xml/extract', {
+      method: 'POST',
+      headers: extractHeaders,
+      body: formData
+    });
+    const result = await resp.json();
     if (result.error) {
       resultDiv.style.display = 'block';
       resultDiv.innerHTML = `<div class="form-msg error">${result.error}</div>`;
@@ -876,33 +875,55 @@ async function extractFromDocument() {
     const confidence = result.confidence || 50;
     const notes = result.notes || [];
     const tokens = result.tokens_used;
+    const ed = extractedData;
 
-    // Confidence badge color
+    // Fill in the main form fields from extracted data
+    if (ed.rfc) document.getElementById('xmlRfc').value = ed.rfc;
+    if (ed.permiso) document.getElementById('xmlPermiso').value = ed.permiso;
+    if (ed.clave_instalacion) document.getElementById('xmlClave').value = ed.clave_instalacion;
+    if (ed.fecha) document.getElementById('xmlFecha').value = ed.fecha;
+
+    // Check if any fields are uncertain or missing
+    const tanques = ed.tanques || [];
+    const recepciones = ed.recepciones || [];
+    const entregas = ed.entregas || [];
+    const hasUncertain = tanques.some(t => t.uncertain) || recepciones.some(r => r.uncertain) || entregas.some(e => e.uncertain);
+    const hasTanques = tanques.length > 0;
+
+    // If confidence is high, we have tanks, and nothing is uncertain -> go straight to generation
+    if (confidence >= 60 && hasTanques && !hasUncertain) {
+      resultDiv.style.display = 'block';
+      resultDiv.innerHTML = `
+        <div style="background:rgba(13,148,136,.06);border:1px solid var(--teal);border-radius:8px;padding:.8rem">
+          <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem">
+            <span style="background:var(--green);color:#000;font-weight:700;padding:3px 10px;border-radius:12px;font-size:.75rem">
+              Confianza: ${confidence}/100 (Alta)
+            </span>
+            <span style="color:var(--g400);font-size:.75rem">Datos extraidos de <strong>${uploadedFile.name}</strong></span>
+          </div>
+          <div style="color:var(--teal);font-size:.82rem;font-weight:600;margin-top:.4rem">
+            Todos los datos fueron extraidos exitosamente. Generando reporte...
+          </div>
+          <div style="color:var(--g500);font-size:.72rem;margin-top:.3rem">
+            ${tanques.length} tanque(s), ${recepciones.length} recepcion(es), ${entregas.length} entrega(s)
+          </div>
+        </div>`;
+      // Go straight to XML generation — no manual review needed
+      confirmExtractedData();
+      return;
+    }
+
+    // ---- If we get here, there are uncertain/missing fields — show review UI ----
     const confColor = confidence >= 80 ? 'var(--green)' : confidence >= 50 ? 'var(--orange)' : 'var(--red)';
     const confLabel = confidence >= 80 ? 'Alta' : confidence >= 50 ? 'Media' : 'Baja';
 
-    // Build notes HTML
     const notesHtml = notes.length > 0
       ? `<div style="margin-top:.5rem;padding:.4rem .6rem;background:rgba(249,115,22,.08);border-radius:6px;border-left:3px solid var(--orange)">
-           <div style="color:var(--orange);font-size:.72rem;font-weight:600;margin-bottom:.3rem">Notas y Advertencias:</div>
-           ${notes.map(n => `<div style="color:var(--g400);font-size:.72rem;padding:.1rem 0">&#x26A0; ${n}</div>`).join('')}
-         </div>` : '';
+          <div style="color:var(--orange);font-size:.72rem;font-weight:600;margin-bottom:.3rem">Notas y Advertencias:</div>
+          ${notes.map(n => `<div style="color:var(--g400);font-size:.72rem;padding:.1rem 0">\u26A0 ${n}</div>`).join('')}
+        </div>`
+      : '';
 
-    // Build editable fields for station info
-    const ed = extractedData;
-    const rfcVal = ed.rfc || '';
-    const permisoVal = ed.permiso || '';
-    const claveVal = ed.clave_instalacion || '';
-    const fechaVal = ed.fecha || new Date().toISOString().split('T')[0];
-
-    // Fill in the main form fields if available
-    if (rfcVal) document.getElementById('xmlRfc').value = rfcVal;
-    if (permisoVal) document.getElementById('xmlPermiso').value = permisoVal;
-    if (claveVal) document.getElementById('xmlClave').value = claveVal;
-    if (fechaVal) document.getElementById('xmlFecha').value = fechaVal;
-
-    // Build tanks table
-    const tanques = ed.tanques || [];
     const tanquesRows = tanques.map((t, i) => `<tr>
       <td><input class="form-input" style="font-size:.72rem;padding:4px 6px" value="${t.nombre || ''}" id="ext_tq_nombre_${i}"></td>
       <td><select class="form-select" style="font-size:.72rem;padding:4px 6px" id="ext_tq_prod_${i}">
@@ -913,27 +934,23 @@ async function extractFromDocument() {
       <td><input type="number" class="form-input" style="font-size:.72rem;padding:4px 6px;width:80px" value="${t.capacidad_litros || ''}" id="ext_tq_cap_${i}"></td>
       <td><input type="number" class="form-input" style="font-size:.72rem;padding:4px 6px;width:80px" value="${t.inventario_inicial || ''}" id="ext_tq_ini_${i}"></td>
       <td><input type="number" class="form-input" style="font-size:.72rem;padding:4px 6px;width:80px" value="${t.inventario_final || ''}" id="ext_tq_fin_${i}"></td>
-      <td style="text-align:center">${t.uncertain ? '<span style="color:var(--orange);font-size:.7rem">&#x26A0;</span>' : '<span style="color:var(--green);font-size:.7rem">&#x2713;</span>'}</td>
+      <td style="text-align:center">${t.uncertain ? '<span style="color:var(--orange);font-size:.7rem">\u26A0</span>' : '<span style="color:var(--green);font-size:.7rem">\u2713</span>'}</td>
     </tr>`).join('');
 
-    // Build receptions table
-    const recepciones = ed.recepciones || [];
     const recepRows = recepciones.map((r, i) => `<tr>
       <td><input class="form-input" style="font-size:.72rem;padding:4px 6px" value="${r.tanque || ''}" id="ext_rec_tq_${i}"></td>
       <td><input type="number" class="form-input" style="font-size:.72rem;padding:4px 6px;width:80px" value="${r.litros || ''}" id="ext_rec_litros_${i}"></td>
       <td><input class="form-input" style="font-size:.72rem;padding:4px 6px" value="${r.proveedor || ''}" id="ext_rec_prov_${i}"></td>
       <td><input class="form-input" style="font-size:.72rem;padding:4px 6px;width:100px" value="${r.num_factura || ''}" id="ext_rec_fact_${i}"></td>
       <td><input type="number" class="form-input" style="font-size:.72rem;padding:4px 6px;width:70px" value="${r.precio_litro || ''}" step="0.01" id="ext_rec_precio_${i}"></td>
-      <td style="text-align:center">${r.uncertain ? '<span style="color:var(--orange);font-size:.7rem">&#x26A0;</span>' : '<span style="color:var(--green);font-size:.7rem">&#x2713;</span>'}</td>
+      <td style="text-align:center">${r.uncertain ? '<span style="color:var(--orange);font-size:.7rem">\u26A0</span>' : '<span style="color:var(--green);font-size:.7rem">\u2713</span>'}</td>
     </tr>`).join('');
 
-    // Build deliveries table
-    const entregas = ed.entregas || [];
     const entregRows = entregas.map((e, i) => `<tr>
       <td><input class="form-input" style="font-size:.72rem;padding:4px 6px" value="${e.tanque || ''}" id="ext_ent_tq_${i}"></td>
       <td><input type="number" class="form-input" style="font-size:.72rem;padding:4px 6px;width:80px" value="${e.litros || ''}" id="ext_ent_litros_${i}"></td>
       <td><input class="form-input" style="font-size:.72rem;padding:4px 6px" value="${e.dispensario || ''}" id="ext_ent_disp_${i}"></td>
-      <td style="text-align:center">${e.uncertain ? '<span style="color:var(--orange);font-size:.7rem">&#x26A0;</span>' : '<span style="color:var(--green);font-size:.7rem">&#x2713;</span>'}</td>
+      <td style="text-align:center">${e.uncertain ? '<span style="color:var(--orange);font-size:.7rem">\u26A0</span>' : '<span style="color:var(--green);font-size:.7rem">\u2713</span>'}</td>
     </tr>`).join('');
 
     const tokensHtml = tokens ? `<span style="color:var(--g500);font-size:.68rem;margin-left:8px">(${tokens.input + tokens.output} tokens)</span>` : '';
@@ -948,8 +965,11 @@ async function extractFromDocument() {
           <span style="color:var(--g400);font-size:.75rem">Datos extraidos de <strong>${uploadedFile.name}</strong></span>
           ${tokensHtml}
         </div>
+        <div style="background:rgba(249,115,22,.1);border-radius:6px;padding:.5rem .7rem;margin-bottom:.5rem;border-left:3px solid var(--orange)">
+          <span style="color:var(--orange);font-size:.78rem;font-weight:600">\u26A0 Algunos datos requieren revision</span>
+          <span style="color:var(--g400);font-size:.72rem;display:block;margin-top:.2rem">Revisa los campos marcados con \u26A0 y completa la informacion faltante.</span>
+        </div>
         ${notesHtml}
-
         <div style="margin-top:.6rem">
           <div style="color:var(--w);font-size:.78rem;font-weight:600;margin-bottom:.3rem">Tanques</div>
           <div class="table-wrap" style="margin-bottom:.5rem">
@@ -959,7 +979,6 @@ async function extractFromDocument() {
             </table>
           </div>
         </div>
-
         ${recepciones.length > 0 ? `<div style="margin-top:.5rem">
           <div style="color:var(--w);font-size:.78rem;font-weight:600;margin-bottom:.3rem">Recepciones</div>
           <div class="table-wrap" style="margin-bottom:.5rem">
@@ -969,7 +988,6 @@ async function extractFromDocument() {
             </table>
           </div>
         </div>` : ''}
-
         ${entregas.length > 0 ? `<div style="margin-top:.5rem">
           <div style="color:var(--w);font-size:.78rem;font-weight:600;margin-bottom:.3rem">Entregas/Ventas</div>
           <div class="table-wrap" style="margin-bottom:.5rem">
@@ -979,7 +997,6 @@ async function extractFromDocument() {
             </table>
           </div>
         </div>` : ''}
-
         <div style="margin-top:.6rem;display:flex;gap:.5rem">
           <button class="btn btn-primary" onclick="confirmExtractedData()" style="background:var(--green);padding:8px 20px;font-size:.8rem">
             Confirmar y Generar XML
@@ -989,17 +1006,9 @@ async function extractFromDocument() {
           </button>
         </div>
         <p style="color:var(--g500);font-size:.68rem;margin-top:.4rem;margin-bottom:0">
-          Revisa y edita los datos extraidos antes de generar el XML. Los campos marcados con &#x26A0; requieren atencion.
+          Revisa y edita los datos extraidos antes de generar el XML. Los campos marcados con \u26A0 requieren atencion.
         </p>
       </div>`;
-
-    // Auto-confirm and generate if confidence is sufficient
-    // Skip the manual review step — go straight to XML generation
-    setTimeout(function() {
-      try { confirmExtractedData(); } catch(err) { console.log('Auto-confirm skipped:', err); }
-    }, 500);
-
-
   } catch(e) {
     resultDiv.style.display = 'block';
     resultDiv.innerHTML = `<div class="form-msg error">${e.message}</div>`;

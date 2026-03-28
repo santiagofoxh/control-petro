@@ -460,7 +460,7 @@ async function loadReportes() {
       <div class="panel-header">
         <span class="panel-title" style="color:var(--teal)">Generar Reporte con IA (Loti)</span>
       </div>
-      <p style="color:var(--g400);font-size:.78rem;margin-bottom:.8rem">Sube tus datos operativos y Claude genera el XML validado listo para enviar al SAT o CNE via el portal de controles volumetricos.</p>
+      <p style="color:var(--g400);font-size:.78rem;margin-bottom:.8rem">Sube tus datos operativos y Loti genera el XML validado listo para enviar al SAT o CNE via el portal de controles volumetricos.</p>
       <div id="satXmlForm">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.6rem">
           <div class="form-group" style="margin:0">

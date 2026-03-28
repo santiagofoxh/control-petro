@@ -460,7 +460,7 @@ async function loadReportes() {
       <div class="panel-header">
         <span class="panel-title" style="color:var(--teal)">Generar Reporte con IA (Loti)</span>
       </div>
-      <p style="color:var(--g400);font-size:.78rem;margin-bottom:.8rem">Sube tus datos operativos y Loti genera el XML validado listo para enviar al SAT o CNE via el portal de controles volumetricos.</p>
+      <p style="color:var(--g400);font-size:.78rem;margin-bottom:.8rem">Sube tus datos operativos y Loti genera el reporte en XML o JSON (según Anexo 21 del SAT) validado y listo para enviar al SAT o CNE vía el portal de controles volumétricos.</p>
       <div id="satXmlForm">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.6rem">
           <div class="form-group" style="margin:0">
@@ -681,7 +681,28 @@ async function generateAllReports() {
 }
 
 function downloadReport(id) {
-  window.open(`/api/reports/download/${id}`, '_blank');
+  showDownloadModal(id);
+}
+
+function showDownloadModal(id, filename) {
+  var overlay = document.createElement('div');
+  overlay.id = 'downloadModal';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:9999;backdrop-filter:blur(4px);animation:fadeIn .2s ease';
+  overlay.innerHTML = '<div style="background:var(--g900,#1a1a2e);border:1px solid var(--teal,#0D9488);border-radius:12px;padding:2rem;max-width:420px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.4)">' +
+    '<div style="width:56px;height:56px;border-radius:50%;background:rgba(13,148,136,.15);display:flex;align-items:center;justify-content:center;margin:0 auto .8rem"><svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="#0D9488" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></div>' +
+    '<h3 style="color:var(--w,#fff);margin:0 0 .4rem;font-size:1.1rem">Reporte Listo</h3>' +
+    '<p style="color:var(--g400,#9ca3af);font-size:.82rem;margin:0 0 1.2rem">Tu reporte ha sido generado exitosamente y está listo para descargar.</p>' +
+    '<div style="display:flex;gap:.6rem;justify-content:center">' +
+    '<a href="/api/reports/download/' + id + '" download class="btn btn-primary" style="background:var(--teal,#0D9488);padding:10px 28px;text-decoration:none;font-size:.85rem;border-radius:8px;display:inline-flex;align-items:center;gap:6px"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg> Descargar</a>' +
+    '<button class="btn btn-outline" onclick="dismissDownloadModal()" style="padding:10px 20px;font-size:.85rem;border-radius:8px">Cerrar</button>' +
+    '</div></div>';
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) dismissDownloadModal(); });
+  document.body.appendChild(overlay);
+}
+
+function dismissDownloadModal() {
+  var m = document.getElementById('downloadModal');
+  if (m) m.remove();
 }
 
 async function sendReport(id) {
@@ -1118,7 +1139,7 @@ function renderReportResult(result, formatLabel) {
     : '';
   const portalMsg = formatLabel === 'CNE'
     ? 'Sube este reporte al portal CNE/CRE segun la normativa vigente.'
-    : 'Sube este .zip al portal SAT: sat.gob.mx/tramites/01116';
+    : 'Sube este .zip (XML o JSON según Anexo 21) al portal SAT: sat.gob.mx/tramites/01116';
   const sendLabel = formatLabel === 'CNE' ? 'Marcar Enviado al CNE' : 'Marcar Enviado al SAT';
   return '<div style="background:rgba(13,148,136,.1);border:1px solid var(--teal);border-radius:8px;padding:.8rem;margin-bottom:.5rem;position:relative">'
       + '<button onclick="this.parentElement.parentElement.style.display=\'none\'" style="position:absolute;top:6px;right:8px;background:none;border:none;color:var(--g500);font-size:1.1rem;cursor:pointer;line-height:1;padding:2px 6px" title="Cerrar">&times;</button>'
@@ -1128,7 +1149,7 @@ function renderReportResult(result, formatLabel) {
     + '<div style="font-size:.72rem;color:var(--g400);margin-bottom:.5rem"><strong>Validacion:</strong> ' + (v.product_count||0) + ' productos, ' + (v.bitacora_count||0) + ' entradas bitacora</div>'
     + '<div style="font-size:.72rem;color:var(--g400)">' + products + '</div>' + warnings
     + '<div style="margin-top:.6rem;display:flex;gap:.5rem">'
-    + '<button class="btn btn-primary" onclick="downloadReport(' + result.report_id + ')" style="background:var(--teal)">Descargar ' + result.zip_filename + '</button>'
+    + '<a href="/api/reports/download/' + result.report_id + '" download class="btn btn-primary" style="background:var(--teal);text-decoration:none;display:inline-flex;align-items:center;gap:6px"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg> Descargar ' + result.zip_filename + '</a>'
     + '<button class="btn btn-outline" onclick="sendReport(' + result.report_id + ')">' + sendLabel + '</button></div>'
     + '<p style="color:var(--g500);font-size:.68rem;margin-top:.5rem;margin-bottom:0">' + portalMsg + '</p></div>';
 }

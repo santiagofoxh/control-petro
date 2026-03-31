@@ -984,6 +984,7 @@ async function extractFromDocument() {
     const tokensHtml = tokens ? `<span style="color:var(--g500);font-size:.68rem;margin-left:8px">(${tokens.input + tokens.output} tokens)</span>` : '';
 
     // Calculate summary stats
+    const fechaVal = ed.fecha || new Date().toISOString().split('T')[0];
     const totalRecibidos = recepciones.reduce((sum, r) => sum + (parseFloat(r.litros) || 0), 0);
     const totalVendidos = entregas.reduce((sum, e) => sum + (parseFloat(e.litros) || 0), 0);
     const fuelBreakdown = {};

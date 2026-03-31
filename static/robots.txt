@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Allow: /static/landing.html
+Allow: /article
+Disallow: /api/
+Disallow: /demo
+Disallow: /admin
+
+Sitemap: https://controlpetro.com/sitemap.xml
+
+# ControlPetro - Infraestructura inteligente para gasolineras en Mexico
+# https://controlpetro.com

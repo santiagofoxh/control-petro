@@ -9,7 +9,8 @@ import json
 import base64
 import zipfile
 import xml.etree.ElementTree as ET
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
+from calendar import monthrange
 
 try:
     import anthropic
@@ -77,7 +78,7 @@ SAT_XML_TEMPLATE = '''<?xml version="1.0" encoding="UTF-8"?>
 
 SYSTEM_PROMPT = """You are an expert Mexican fiscal compliance assistant specializing in SAT controles volumetricos (Anexo 30/21).
 
-Your job is to take raw operational data from a gas station and generate a COMPLETE, VALID XML daily report following the SAT's Covol namespace schema.
+Your job is to take raw operational data from a gas station and generate a COMPLETE, VALID XML report (daily or monthly) following the SAT's Covol namespace schema.
 
 CRITICAL RULES:
 1. Use Covol: prefix for all control volumetrico elements
@@ -88,8 +89,9 @@ CRITICAL RULES:
 6. Every tank delivery must reference its Dispensario
 7. Every dispensario delivery must have PrecioVentaTotEnt and CFDI
 8. Product codes: PR09=Magna(87oct), PR07=Premium(91oct), PR03=Diesel
-9. FechaYHoraCorte must be end of day: YYYY-MM-DDT23:59:59
-10. Temperature range: 15-45Â°C, PresionAbsoluta: 0.0 for liquids
+9. FechaYHoraCorte must be end of period (daily: YYYY-MM-DDT23:59:59, monthly: last day of month at YYYY-MM-DDT23:59:59)
+10. Temperature range: 15-45°C, PresionAbsoluta: 0.0 for liquids
+11. For monthly reports, aggregate all daily operations and inventory changes for the entire month
 
 OUTPUT: Return ONLY the complete XML document. No markdown, no code fences, no explanation. Just the raw XML starting with <?xml and ending with </Covol:ControlVolumetrico>."""
 
@@ -102,15 +104,45 @@ CRITICAL RULES:
 1. Use CNE namespace for all elements
 2. Include: station identification, permit details, product volumes, pricing, supplier information
 3. All volumes in liters, prices in MXN
-4. Include daily sales summary by product type (Magna/Premium/Diesel)
+4. Include daily/monthly sales summary by product type (Magna/Premium/Diesel)
 5. Include supplier delivery records with CFDI references
 6. Include inventory opening and closing balances per tank
 7. Product codes: Magna=PEMEX-MAGNA, Premium=PEMEX-PREMIUM, Diesel=PEMEX-DIESEL
-8. Report period: daily (fecha inicio = fecha fin = report date)
+8. Report period: daily (fecha inicio = fecha fin = report date) OR monthly (fecha inicio = 1st day, fecha fin = last day of month)
 9. Include station geographic coordinates and CRE permit number
+10. For monthly reports, aggregate all daily operations
 
 OUTPUT: Return ONLY the complete XML document. No markdown, no code fences, no explanation. Just the raw XML starting with <?xml."""
 
+
+JSON_SYSTEM_PROMPT = """You are an expert Mexican fiscal compliance assistant specializing in SAT controles volumetricos (Anexo 30/21).
+
+Your job is to take raw operational data from a gas station and generate a COMPLETE, VALID JSON report (daily or monthly) following the SAT's Covol JSON schema.
+
+CRITICAL RULES:
+1. Output valid JSON that follows the SAT ControlVolumetrico schema structure
+2. All volumes in liters (UM03), prices in MXN
+3. Balance MUST validate: VolumenExistencias = VolumenExistenciasAnterior + VolumenAcumOpsRecep - VolumenAcumOpsEntreg
+4. Every reception must have complemento with Nacional/CFDI data
+5. Every tank delivery must reference its Dispensario
+6. Product codes: PR09=Magna(87oct), PR07=Premium(91oct), PR03=Diesel
+7. FechaYHoraCorte must be end of period (daily: YYYY-MM-DDT23:59:59, monthly: last day of month at YYYY-MM-DDT23:59:59)
+8. Temperature range: 15-45°C, PresionAbsoluta: 0.0 for liquids
+9. For monthly reports, aggregate all daily operations and inventory changes for the entire month
+
+JSON STRUCTURE:
+Root object should contain:
+- Version: "1.0"
+- RfcContribuyente: station RFC
+- RfcProveedor: provider RFC
+- Caracter: "expendedor"
+- ModalidadPermiso, NumPermiso, ClaveInstalacion, DescripcionInstalacion
+- Geolocalizacion: {GeolocalizacionLatitud, GeolocalizacionLongitud}
+- Productos: array of products with TANQUE, DISPENSARIO, and EXISTENCIAS data
+- Bitacora: array of events/records
+- FechaYHoraCorte: date-time string
+
+OUTPUT: Return ONLY valid JSON. No markdown, no code fences, no explanation."""
 
 
 EXTRACTION_SYSTEM_PROMPT = """Eres un experto en operaciones de estaciones de servicio (gasolineras) en Mexico. Tu trabajo es analizar documentos operativos y extraer datos estructurados para generar reportes SAT de controles volumetricos.
@@ -338,16 +370,22 @@ def extract_data_from_file(file_bytes, filename):
         return {"error": f"Error inesperado: {str(e)}"}
 
 
-def generate_sat_xml_with_ai(station_data, raw_data_text, report_date=None, report_format="sat"):
-    """Use Claude to generate SAT-compliant XML from raw station data.
+def generate_sat_xml_with_ai(station_data, raw_data_text, report_date=None, report_format="sat",
+                             period="diario", output_format="xml", report_month=None, report_year=None):
+    """Use Claude to generate SAT-compliant XML or JSON from raw station data.
 
     Args:
         station_data: dict with station config (RFC, permit, tanks, etc.)
         raw_data_text: str with the raw operational data (readings, sales, etc.)
         report_date: date for the report (defaults to today)
+        report_format: "sat" or "cne" (default "sat")
+        period: "diario" or "mensual" (default "diario" for daily, for backward compatibility)
+        output_format: "xml" or "json" (default "xml")
+        report_month: month for monthly report (1-12), used with mensual period
+        report_year: year for monthly report, used with mensual period
 
     Returns:
-        dict with xml_content, filename, filepath, and validation info
+        dict with xml_content/json_content, filename, filepath, and validation info
     """
     if not HAS_ANTHROPIC:
         return {"error": "Anthropic SDK not installed. Run: pip install anthropic"}
@@ -358,32 +396,54 @@ def generate_sat_xml_with_ai(station_data, raw_data_text, report_date=None, repo
     if report_date is None:
         report_date = date.today()
 
+    # Handle monthly report parameters
+    if period == "mensual":
+        if report_month is not None and report_year is not None:
+            report_date = date(report_year, report_month, 1)
+        # Set to last day of the month for monthly reports
+        last_day = monthrange(report_date.year, report_date.month)[1]
+        report_end_date = date(report_date.year, report_date.month, last_day)
+    else:
+        report_end_date = report_date
+
     # Handle "ambos" by generating both formats
     if report_format == "ambos":
-        sat_result = generate_sat_xml_with_ai(station_data, raw_data_text, report_date, "sat")
-        cne_result = generate_sat_xml_with_ai(station_data, raw_data_text, report_date, "cne")
+        sat_result = generate_sat_xml_with_ai(station_data, raw_data_text, report_date, "sat", period, output_format, report_month, report_year)
+        cne_result = generate_sat_xml_with_ai(station_data, raw_data_text, report_date, "cne", period, output_format, report_month, report_year)
         combined = {"success": True, "reports": [], "format": "ambos"}
         for r, fmt in [(sat_result, "SAT"), (cne_result, "CNE")]:
             if r.get("error"):
                 combined["reports"].append({"format": fmt, "error": r["error"]})
             else:
-                combined["reports"].append({"format": fmt, "xml_filename": r.get("xml_filename"), "zip_filename": r.get("zip_filename"), "validation": r.get("validation"), "tokens_used": r.get("tokens_used"), "report_id": r.get("report_id")})
+                combined["reports"].append({"format": fmt, "filename": r.get("filename"), "zip_filename": r.get("zip_filename"), "validation": r.get("validation"), "tokens_used": r.get("tokens_used"), "report_id": r.get("report_id")})
         if sat_result.get("success"):
-            combined.update({"xml_filename": sat_result["xml_filename"], "zip_filename": sat_result["zip_filename"], "validation": sat_result.get("validation"), "tokens_used": sat_result.get("tokens_used"), "report_id": sat_result.get("report_id")})
+            combined.update({"filename": sat_result["filename"], "zip_filename": sat_result["zip_filename"], "validation": sat_result.get("validation"), "tokens_used": sat_result.get("tokens_used"), "report_id": sat_result.get("report_id")})
         return combined
 
-    # Select prompt based on format
+    # Select prompt based on format and output format
     if report_format == "cne":
         active_prompt = CNE_SYSTEM_PROMPT
         format_label = "CNE/CRE regulatory"
         format_instr = "Generate a COMPLETE CNE/CRE regulatory XML report with station identification, product volumes, pricing, suppliers, and inventory balances."
     else:
-        active_prompt = SYSTEM_PROMPT
-        format_label = "SAT controles volumetricos"
-        format_instr = "Generate the COMPLETE XML with all products, tanks, dispensarios, recepciones, entregas, existencias, and bitacora. Make sure the volumetric balance validates for every tank."
+        if output_format == "json":
+            active_prompt = JSON_SYSTEM_PROMPT
+            format_label = "SAT controles volumetricos"
+            format_instr = "Generate a COMPLETE JSON report with all products, tanks, dispensarios, recepciones, entregas, existencias, and bitacora. Make sure the volumetric balance validates for every tank. Return ONLY valid JSON."
+        else:
+            active_prompt = SYSTEM_PROMPT
+            format_label = "SAT controles volumetricos"
+            format_instr = "Generate the COMPLETE XML with all products, tanks, dispensarios, recepciones, entregas, existencias, and bitacora. Make sure the volumetric balance validates for every tank."
 
-        # Build the user prompt with all context
-    user_prompt = f"""Generate a complete {format_label} DAILY XML report for this gas station.
+    # Determine report period label
+    period_label = "MONTHLY" if period == "mensual" else "DAILY"
+    if period == "mensual":
+        period_info = f"Report covers entire month of {report_date.strftime('%B %Y')} ({report_date.strftime('%Y-%m-01')} to {report_end_date.strftime('%Y-%m-%d')})"
+    else:
+        period_info = f"Report DATE: {report_date.isoformat()}"
+
+    # Build the user prompt with all context
+    user_prompt = f"""Generate a complete {format_label} {period_label} {output_format.upper()} report for this gas station.
 
 STATION CONFIGURATION:
 - RFC: {station_data.get('rfc', 'GAZ850101ABC')}
@@ -397,13 +457,12 @@ STATION CONFIGURATION:
 - Numero de Tanques: {station_data.get('num_tanques', '4')}
 - Numero de Dispensarios: {station_data.get('num_dispensarios', '8')}
 
-REPORT DATE: {report_date.isoformat()}
+{period_info}
 
 RAW OPERATIONAL DATA:
 {raw_data_text}
 
 {format_instr}"""
-
     try:
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
@@ -416,35 +475,57 @@ RAW OPERATIONAL DATA:
             ]
         )
 
-        xml_content = message.content[0].text.strip()
-
-        # Robust XML extraction from AI response
+        response_content = message.content[0].text.strip()
         import re
-        # Try to extract XML from between code fences first
-        fence_match = re.search(r'```(?:xml)?\s*\n(.*?)```', xml_content, re.DOTALL)
-        if fence_match:
-            xml_content = fence_match.group(1).strip()
+
+        # Handle JSON output
+        if output_format == "json":
+            # Try to extract JSON from between code fences first
+            fence_match = re.search(r'```(?:json)?\\s*\\n(.*?)```', response_content, re.DOTALL)
+            if fence_match:
+                json_content = fence_match.group(1).strip()
+            else:
+                json_content = response_content
+
+            # Validate JSON
+            try:
+                json_data = json.loads(json_content)
+                validation = {"valid": True, "error": None, "warnings": []}
+            except json.JSONDecodeError as e:
+                validation = {"valid": False, "error": str(e)}
+                return {
+                    "error": f"Generated JSON is not valid: {validation['error']}",
+                    "content": json_content,
+                    "validation": validation,
+                }
         else:
-            # If no fences, find the XML content by declaration or root element
-            xml_start = xml_content.find('<?xml')
-            if xml_start == -1:
-                xml_start = xml_content.find('<ControlesVolumetricos')
-            if xml_start == -1:
-                xml_start = xml_content.find('<covol:')
-            if xml_start > 0:
-                xml_content = xml_content[xml_start:]
+            # XML output
+            # Try to extract XML from between code fences first
+            fence_match = re.search(r'```(?:xml)?\\s*\\n(.*?)```', response_content, re.DOTALL)
+            if fence_match:
+                xml_content = fence_match.group(1).strip()
+            else:
+                # If no fences, find the XML content by declaration or root element
+                xml_start = response_content.find('<?xml')
+                if xml_start == -1:
+                    xml_start = response_content.find('<ControlesVolumetricos')
+                if xml_start == -1:
+                    xml_start = response_content.find('<covol:')
+                if xml_start > 0:
+                    xml_content = response_content[xml_start:]
+                else:
+                    xml_content = response_content
 
-        # Remove any trailing text after the last XML closing tag
-        last_close = xml_content.rfind('>')
-        if last_close != -1 and last_close < len(xml_content) - 1:
-            xml_content = xml_content[:last_close + 1]
+            # Remove any trailing text after the last XML closing tag
+            last_close = xml_content.rfind('>')
+            if last_close != -1 and last_close < len(xml_content) - 1:
+                xml_content = xml_content[:last_close + 1]
 
-        # Validate XML is well-formed
-        validation = validate_xml(xml_content)
-
-        # If invalid, retry once with error feedback to let AI fix its mistake
-        if not validation["valid"]:
-            retry_prompt = f"""The XML you generated has a validation error:
+            # Validate XML is well-formed
+            validation = validate_xml(xml_content)
+            # If invalid, retry once with error feedback to let AI fix its mistake
+            if not validation["valid"]:
+                retry_prompt = f"""The XML you generated has a validation error:
 {validation['error']}
 
 Here is the beginning of the malformed XML:
@@ -453,95 +534,46 @@ Here is the beginning of the malformed XML:
 Please regenerate the COMPLETE corrected XML from scratch.
 Return ONLY raw XML starting with <?xml - no markdown, no code fences, no explanation."""
 
-            retry_msg = client.messages.create(
-                model="claude-opus-4-5-20251101",
-                max_tokens=16000,
-                system=SYSTEM_PROMPT,
-                messages=[
-                    {"role": "user", "content": user_prompt},
-                    {"role": "assistant", "content": xml_content[:3000]},
-                    {"role": "user", "content": retry_prompt}
-                ]
-            )
+                retry_msg = client.messages.create(
+                    model="claude-opus-4-6",
+                    max_tokens=16000,
+                    system=active_prompt,
+                    messages=[
+                        {"role": "user", "content": user_prompt},
+                        {"role": "assistant", "content": xml_content[:3000]},
+                        {"role": "user", "content": retry_prompt}
+                    ]
+                )
 
-            xml_content = retry_msg.content[0].text.strip()
+                xml_content = retry_msg.content[0].text.strip()
 
-            # Clean retry response
-            fence_match = re.search(r'```(?:xml)?\s*\n(.*?)```', xml_content, re.DOTALL)
-            if fence_match:
-                xml_content = fence_match.group(1).strip()
-            else:
-                xml_start = xml_content.find('<?xml')
-                if xml_start == -1:
-                    xml_start = xml_content.find('<ControlesVolumetricos')
-                if xml_start == -1:
-                    xml_start = xml_content.find('<covol:')
-                if xml_start > 0:
-                    xml_content = xml_content[xml_start:]
+                # Clean retry response
+                fence_match = re.search(r'```(?:xml)?\\s*\\n(.*?)```', xml_content, re.DOTALL)
+                if fence_match:
+                    xml_content = fence_match.group(1).strip()
+                else:
+                    xml_start = xml_content.find('<?xml')
+                    if xml_start == -1:
+                        xml_start = xml_content.find('<ControlesVolumetricos')
+                    if xml_start == -1:
+                        xml_start = xml_content.find('<covol:')
+                    if xml_start > 0:
+                        xml_content = xml_content[xml_start:]
 
-            last_close = xml_content.rfind('>')
-            if last_close != -1 and last_close < len(xml_content) - 1:
-                xml_content = xml_content[:last_close + 1]
+                last_close = xml_content.rfind('>')
+                if last_close != -1 and last_close < len(xml_content) - 1:
+                    xml_content = xml_content[:last_close + 1]
 
-            # Validate retry result
-            validation = validate_xml(xml_content)
-            if not validation["valid"]:
-                return {
-                    "error": f"Generated XML is not well-formed after retry: {validation['error']}",
-                    "xml_content": xml_content,
-                    "validation": validation,
-                }
+                # Validate retry result
+                validation = validate_xml(xml_content)
+                if not validation["valid"]:
+                    return {
+                        "error": f"Generated XML is not well-formed after retry: {validation['error']}",
+                        "xml_content": xml_content,
+                        "validation": validation,
+                    }
 
-
-        # Save and zip
-        rfc = station_data.get('rfc', 'GAZ850101ABC')
-        clave = station_data.get('clave_instalacion', 'EDS-0001')
-        date_str = report_date.strftime('%Y%m%d')
-
-        fmt_tag = "CNE" if report_format == "cne" else "SAT"
-        xml_filename = f"{rfc}_{clave}_{date_str}_{fmt_tag}_DIA.xml"
-        zip_filename = f"{rfc}_{clave}_{date_str}_{fmt_tag}_DIA.xml.zip"
-
-        report_dir = os.path.join(os.path.dirname(__file__), "generated_reports")
-        os.makedirs(report_dir, exist_ok=True)
-
-        xml_path = os.path.join(report_dir, xml_filename)
-        zip_path = os.path.join(report_dir, zip_filename)
-
-        # Write XML file
-        with open(xml_path, "w", encoding="utf-8") as f:
-            f.write(xml_content)
-
-        # Create zip
-        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-            zf.write(xml_path, xml_filename)
-
-        return {
-            "success": True,
-            "xml_filename": xml_filename,
-            "zip_filename": zip_filename,
-            "xml_path": xml_path,
-            "zip_path": zip_path,
-            "validation": validation,
-            "tokens_used": {
-                "input": message.usage.input_tokens,
-                "output": message.usage.output_tokens,
-            },
-        }
-
-    except anthropic.APIError as e:
-        return {"error": f"Anthropic API error: {str(e)}"}
-    except Exception as e:
-        return {"error": f"Unexpected error: {str(e)}"}
-
-
-def validate_xml(xml_content):
-    """Validate that XML is well-formed and check volumetric balance."""
-    result = {"valid": False, "error": None, "warnings": [], "products": []}
-
-    try:
-        root = ET.fromstring(xml_content)
-        result["valid"] = True
+            json_content = xml_content["valid"] = True
 
         # Check namespaces
         covol_ns = "http://www.sat.gob.mx/ControlesVolumetricos"
@@ -678,3 +710,119 @@ def generate_demo_xml(report_date=None):
     }
 
     return generate_sat_xml_with_ai(station_config, raw_data_text, report_date)
+
+
+def generate_monthly_report_from_db(station_id, year, month, report_format="sat", output_format="xml"):
+    """Generate a monthly SAT/CNE report by aggregating daily data from the database.
+
+    Args:
+        station_id: ID of the station to report on
+        year: year for the monthly report (e.g., 2026)
+        month: month for the monthly report (1-12)
+        report_format: "sat" or "cne" (default "sat")
+        output_format: "xml" or "json" (default "xml")
+
+    Returns:
+        dict with filename, zip_filename, validation, and token usage
+    """
+    from database import db, Station, FuelTransaction, InventorySnapshot
+
+    station = Station.query.get(station_id)
+    if not station:
+        return {"error": f"Station with ID {station_id} not found"}
+
+    # Build list of all dates in the month
+    last_day = monthrange(year, month)[1]
+    month_start = date(year, month, 1)
+    month_end = date(year, month, last_day)
+
+    # Build raw data text by aggregating all daily data for the month
+    raw_lines = [
+        f"MONTHLY REPORT FOR: {station.name} ({station.code})",
+        f"MONTH: {month_start.strftime('%B %Y')}",
+        f"PERIOD: {month_start.isoformat()} to {month_end.isoformat()}",
+        ""
+    ]
+
+    fuel_types = ["magna", "premium", "diesel"]
+
+    # Get opening inventory for the month (last snapshot from previous month)
+    opening_date = month_start - timedelta(days=1)
+
+    opening_inventories = {}
+    for ft in fuel_types:
+        snap = InventorySnapshot.query.filter_by(
+            station_id=station_id, fuel_type=ft, snapshot_date=opening_date
+        ).first()
+        opening_inventories[ft] = snap.liters_on_hand if snap else 0
+
+    # Get closing inventory for the month (snapshot on last day)
+    closing_inventories = {}
+    for ft in fuel_types:
+        snap = InventorySnapshot.query.filter_by(
+            station_id=station_id, fuel_type=ft, snapshot_date=month_end
+        ).first()
+        closing_inventories[ft] = snap.liters_on_hand if snap else 0
+
+    # Aggregate transactions for the entire month
+    month_start_dt = datetime.combine(month_start, datetime.min.time())
+    month_end_dt = datetime.combine(month_end, datetime.max.time())
+
+    for ft in fuel_types:
+        cap = getattr(station, f"{ft}_capacity", 40000)
+
+        # Total received and sold for the month
+        received = float(db.session.query(
+            db.func.coalesce(db.func.sum(FuelTransaction.liters), 0)
+        ).filter(
+            FuelTransaction.station_id == station_id,
+            FuelTransaction.fuel_type == ft,
+            FuelTransaction.transaction_type == "received",
+            FuelTransaction.timestamp.between(month_start_dt, month_end_dt),
+        ).scalar())
+
+        sold = float(db.session.query(
+            db.func.coalesce(db.func.sum(FuelTransaction.liters), 0)
+        ).filter(
+            FuelTransaction.station_id == station_id,
+            FuelTransaction.fuel_type == ft,
+            FuelTransaction.transaction_type == "sold",
+            FuelTransaction.timestamp.between(month_start_dt, month_end_dt),
+        ).scalar())
+
+        opening = opening_inventories[ft]
+        closing = closing_inventories[ft]
+
+        raw_lines.append(f"TANQUE {ft.upper()} (MONTHLY AGGREGATE):")
+        raw_lines.append(f""  Capacidad: {cap}L")
+        raw_lines.append(f"  Inventario Inicial (Month Start): {opening:.0f}L")
+        raw_lines.append(f"  Total Litros Recibidos (Month): {received:.0f}L")
+        raw_lines.append(f"  Total Litros Vendidos (Month): {sold:.0f}L")
+        raw_lines.append(f"  Inventario Final (Month End): {closing:.0f}L")
+        raw_lines.append(f"  Expected Balance: {opening + received - sold:.0f}L")
+        raw_lines.append("")
+
+    raw_data_text = "\n".join(raw_lines)
+
+    station_config = {
+        "rfc": station.rfc or "GAZ850101ABC",
+        "rfc_proveedor": station.rfc_proveedor or "XAXX010101000",
+        "num_permiso": station.num_permiso or "PL/12345/EXP/ES/2024",
+        "modalidad_permiso": station.modalidad_permiso or "PL/XXXXX/EXP/ES/2024",
+        "clave_instalacion": station.clave_instalacion or f"EDS-{station.code}",
+        "descripcion": f"{station.name}, {station.address}, {station.city}",
+        "latitud": str(station.latitude or "31.6904"),
+        "longitud": str(station.longitude or "-106.4245"),
+        "num_tanques": str(station.num_tanques or 3),
+        "num_dispensarios": str(station.num_dispensarios or 8),
+    }
+
+    # Call the main generation function with monthly parameters
+    return generate_sat_xml_with_ai(
+        station_config, raw_data_text, month_start,
+        report_format=report_format,
+        period="mensual",
+        output_format=output_format,
+        report_month=month,
+        report_year=year
+    )

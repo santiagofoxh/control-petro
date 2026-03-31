@@ -1094,8 +1094,17 @@ def api_generate_sat_xml():
     report_date_str = data.get("date")
     report_date = date.fromisoformat(report_date_str) if report_date_str else date.today()
     report_format = data.get("format", "sat")
+    period = data.get("period", "diario")  # "diario" or "mensual"
+    output_format = data.get("output_format", "xml")  # "xml" or "json"
+    report_month = data.get("report_month")  # 1-12 for monthly
+    report_year = data.get("report_year")  # year for monthly
 
-    result = sat_xml_generator.generate_sat_xml_with_ai(station_config, raw_data, report_date, report_format)
+    result = sat_xml_generator.generate_sat_xml_with_ai(
+        station_config, raw_data, report_date, report_format,
+        period=period, output_format=output_format,
+        report_month=int(report_month) if report_month else None,
+        report_year=int(report_year) if report_year else None
+    )
     if result.get("error"):
         return jsonify(result), 500 if "API error" in result["error"] else 400
 
@@ -1114,10 +1123,13 @@ def api_generate_sat_xml():
     return jsonify({
         "success": True,
         "report_id": report.id,
-        "xml_filename": result["xml_filename"],
+        "filename": result.get("filename", result.get("xml_filename")),
+        "xml_filename": result.get("xml_filename", result.get("filename")),
         "zip_filename": result["zip_filename"],
         "validation": result["validation"],
         "tokens_used": result.get("tokens_used"),
+        "output_format": output_format,
+        "period": period,
     })
 
 
@@ -1153,6 +1165,53 @@ def api_generate_sat_xml_from_db():
         "tokens_used": result.get("tokens_used"),
     })
 
+
+
+@app.route("/api/sat-xml/generate-monthly", methods=["POST"])
+@require_auth
+def api_generate_monthly_report():
+    """Generate a monthly SAT/CNE report by aggregating daily data from the database."""
+    data = request.json or {}
+    station_id = data.get("station_id")
+    if not station_id:
+        return jsonify({"error": "station_id is required"}), 400
+
+    year = data.get("year")
+    month = data.get("month")
+    if not year or not month:
+        return jsonify({"error": "year and month are required"}), 400
+
+    report_format = data.get("format", "sat")
+    output_format = data.get("output_format", "xml")
+
+    result = sat_xml_generator.generate_monthly_report_from_db(
+        int(station_id), int(year), int(month),
+        report_format=report_format, output_format=output_format
+    )
+    if result.get("error"):
+        return jsonify(result), 500 if "API error" in result.get("error", "") else 400
+
+    rtype = "cne" if report_format == "cne" else "sat"
+    report = Report(
+        report_type=f"{rtype}_{output_format}_monthly",
+        report_date=date(int(year), int(month), 1),
+        status="generated",
+        file_path=result.get("zip_path"),
+        created_at=datetime.utcnow(),
+        details=f"Monthly {report_format.upper()} {output_format.upper()} report for {month}/{year}",
+        generated_by_id=g.current_user.id if g.current_user else None,
+    )
+    db.session.add(report)
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "report_id": report.id,
+        "filename": result.get("filename"),
+        "zip_filename": result.get("zip_filename"),
+        "validation": result.get("validation"),
+        "tokens_used": result.get("tokens_used"),
+    })
 
 @app.route("/api/sat-xml/download/<int:report_id>")
 @optional_auth

@@ -1170,9 +1170,20 @@ async function generateSatXml() {
       const fecha = document.getElementById('xmlFecha').value;
       result = await apiPost('/api/sat-xml/generate-from-db', { date: fecha, format: _reportFormat });
     } else {
-      const rawData = document.getElementById('xmlRawData').value;
+      let rawData = document.getElementById('xmlRawData').value;
+
+      // If source is upload and file exists but no raw data yet, auto-extract first
+      if (!rawData.trim() && source === 'upload' && uploadedFile) {
+        spinner.style.display = 'none';
+        btn.disabled = false;
+        await extractFromDocument();
+        return; // extractFromDocument shows confirmation UI; user clicks "Confirmar y Generar XML"
+      }
+
       if (!rawData.trim()) {
-        throw new Error('Ingresa los datos operativos del dia.');
+        throw new Error(source === 'upload'
+          ? 'Sube un documento primero y haz clic en "Analizar Documento con IA".'
+          : 'Ingresa los datos operativos del dia.');
       }
       result = await apiPost('/api/sat-xml/generate', {
         rfc: document.getElementById('xmlRfc').value,

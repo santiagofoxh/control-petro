@@ -877,6 +877,9 @@ async function extractFromDocument() {
   resultDiv.style.display = 'none';
 
   try {
+    // Fetch stations list for the station selector
+    const stationsList = await api('/api/stations');
+
     const formData = new FormData();
     formData.append('file', uploadedFile);
     const allHeaders = getApiHeaders();
@@ -1022,6 +1025,15 @@ async function extractFromDocument() {
             </table>
           </div>
         </div>` : ''}
+        <div style="margin-top:.6rem;padding:.5rem;background:rgba(249,115,22,.06);border:1px solid var(--orange);border-radius:6px">
+          <label class="form-label" style="font-size:.75rem;color:var(--orange);margin-bottom:.3rem">Estacion (para guardar datos en Dashboard y Predicciones)</label>
+          <select class="form-select" id="ext_station_id" style="font-size:.78rem;padding:6px 8px">
+            <option value="">-- No guardar en base de datos --</option>
+            ${stationsList.map(s => `<option value="${s.id}">${s.code} - ${s.name}</option>`).join('')}
+          </select>
+          <p style="color:var(--g500);font-size:.68rem;margin:.3rem 0 0">Selecciona una estacion para que los datos extraidos se guarden automaticamente en el dashboard, inventario y predicciones.</p>
+        </div>
+
         <div style="margin-top:.6rem;display:flex;gap:.5rem">
           <button class="btn btn-primary" onclick="confirmExtractedData()" style="background:var(--green);padding:8px 20px;font-size:.8rem">
             Confirmar y Generar XML
@@ -1043,7 +1055,7 @@ async function extractFromDocument() {
   }
 }
 
-function confirmExtractedData() {
+async function confirmExtractedData() {
   if (!extractedData) {
     alert('No hay datos extraidos. Analiza un documento primero.');
     return;
@@ -1059,6 +1071,10 @@ function confirmExtractedData() {
   rawLines.push(`FECHA: ${fecha}`);
   rawLines.push('');
 
+  // Collect structured data for DB save
+  const dbTransactions = [];
+  const dbInventoryReadings = [];
+
   // Tanks
   tanques.forEach((t, i) => {
     const nombre = (document.getElementById(`ext_tq_nombre_${i}`) || {}).value || t.nombre;
@@ -1071,6 +1087,14 @@ function confirmExtractedData() {
     rawLines.push(`  Capacidad: ${cap}L`);
     rawLines.push(`  Inventario Inicial: ${ini}L`);
 
+    // Track inventory final reading for DB
+    if (fin && prod) {
+      dbInventoryReadings.push({
+        fuel_type: prod.toLowerCase(),
+        liters_on_hand: parseFloat(fin) || 0
+      });
+    }
+
     // Find receptions for this tank
     recepciones.forEach((r, j) => {
       const rTq = (document.getElementById(`ext_rec_tq_${j}`) || {}).value || r.tanque;
@@ -1081,6 +1105,16 @@ function confirmExtractedData() {
         const precio = (document.getElementById(`ext_rec_precio_${j}`) || {}).value || r.precio_litro;
         rawLines.push(`  Recepcion: ${litros}L (Factura ${fact}, Proveedor: ${prov}, RFC: ${r.rfc_proveedor || 'N/A'})`);
         rawLines.push(`  Precio por litro: $${precio}`);
+
+        // Add to DB transactions
+        dbTransactions.push({
+          fuel_type: prod.toLowerCase(),
+          transaction_type: 'received',
+          liters: parseFloat(litros) || 0,
+          price_per_liter: parseFloat(precio) || null,
+          timestamp: fecha + 'T08:00:00',
+          notes: `Factura ${fact}, Proveedor: ${prov}`
+        });
       }
     });
 
@@ -1093,11 +1127,20 @@ function confirmExtractedData() {
         const disp = (document.getElementById(`ext_ent_disp_${j}`) || {}).value || e.dispensario;
         totalEntregas += parseFloat(litros) || 0;
         rawLines.push(`  Litros Vendidos: ${litros}L via ${disp}`);
+
+        // Add to DB transactions
+        dbTransactions.push({
+          fuel_type: prod.toLowerCase(),
+          transaction_type: 'sold',
+          liters: parseFloat(litros) || 0,
+          timestamp: fecha + 'T18:00:00',
+          notes: `Dispensario: ${disp}`
+        });
       }
     });
 
     rawLines.push(`  Inventario Final: ${fin}L`);
-    if (t.temperatura) rawLines.push(`  Temperatura promedio: ${t.temperatura}Â°C`);
+    if (t.temperatura) rawLines.push(`  Temperatura promedio: ${t.temperatura}°C`);
     rawLines.push('');
   });
 
@@ -1109,10 +1152,54 @@ function confirmExtractedData() {
   document.getElementById('xmlSource').value = 'manual';
   toggleXmlDataSource();
 
+  // ---- Save to database if station selected ----
+  const stationSelect = document.getElementById('ext_station_id');
+  const stationId = stationSelect ? parseInt(stationSelect.value) : null;
+
+  if (stationId && dbTransactions.length > 0) {
+    try {
+      // Save transactions (received + sold)
+      const txnResult = await apiPost('/api/ingest/transactions', {
+        station_id: stationId,
+        transactions: dbTransactions
+      });
+
+      // Save inventory snapshot
+      if (dbInventoryReadings.length > 0) {
+        await apiPost('/api/ingest/inventory', {
+          station_id: stationId,
+          readings: dbInventoryReadings,
+          snapshot_date: fecha
+        });
+      }
+
+      // Show success notification
+      const resultDiv = document.getElementById('xmlExtractResult');
+      if (resultDiv) {
+        const successBanner = document.createElement('div');
+        successBanner.className = 'form-msg success';
+        successBanner.style.cssText = 'margin-bottom:.5rem;padding:.5rem .8rem;font-size:.78rem';
+        successBanner.innerHTML = `Datos guardados en base de datos: ${txnResult.created_count || dbTransactions.length} transacciones registradas para ${txnResult.station || 'la estacion'}. El dashboard y predicciones se actualizaran automaticamente.`;
+        resultDiv.prepend(successBanner);
+      }
+
+      console.log('DB save success:', txnResult);
+    } catch (dbErr) {
+      console.warn('Could not save to DB (XML generation will continue):', dbErr);
+      const resultDiv = document.getElementById('xmlExtractResult');
+      if (resultDiv) {
+        const warnBanner = document.createElement('div');
+        warnBanner.className = 'form-msg error';
+        warnBanner.style.cssText = 'margin-bottom:.5rem;padding:.5rem .8rem;font-size:.78rem';
+        warnBanner.innerHTML = `Nota: No se pudieron guardar los datos en la base de datos (${dbErr.message}). El reporte XML se generara normalmente.`;
+        resultDiv.prepend(warnBanner);
+      }
+    }
+  }
+
   // Auto-trigger XML generation
   generateSatXml();
 }
-
 function setReportFormat(fmt) {
   _reportFormat = fmt;
   ['sat','cne','ambos'].forEach(f => {

@@ -794,7 +794,7 @@ def generate_monthly_report_from_db(station_id, year, month, report_format="sat"
         closing = closing_inventories[ft]
 
         raw_lines.append(f"TANQUE {ft.upper()} (MONTHLY AGGREGATE):")
-        raw_lines.append(f""  Capacidad: {cap}L")
+        raw_lines.append(f"  Capacidad: {cap}L")
         raw_lines.append(f"  Inventario Inicial (Month Start): {opening:.0f}L")
         raw_lines.append(f"  Total Litros Recibidos (Month): {received:.0f}L")
         raw_lines.append(f"  Total Litros Vendidos (Month): {sold:.0f}L")

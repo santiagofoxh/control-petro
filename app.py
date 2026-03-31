@@ -1,4 +1,5 @@
-"""Control Petro v2 - AI platform for Mexican petroleum distributors.
+"sitemap.xml
+""Control Petro v2 - AI platform for Mexican petroleum distributors.
 
 Now with multi-tenant auth, organization hierarchy, and OpenClaw integration.
 """
@@ -97,6 +98,9 @@ def sitemap_xml():
     return send_from_directory("static", "sitemap.xml", mimetype="application/xml")
 
 
+@app.route("/google07cd26ef5b7dc759.html")
+def google_verification():
+    return send_from_directory("static", "google07cd26ef5b7dc759.html")
 
 
 @app.route("/login")

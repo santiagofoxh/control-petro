@@ -8,6 +8,8 @@ let currentPage = 'dashboard';
 let _selectedRazonId = '';  // '' = all razones
 let _razonesList = [];
 let _reportFormat = 'sat';
+let _outputFormat = 'xml';
+let _periodType = 'diario';
 // ---------------------------------------------------------------
 //  Theme Toggle (Dark / Light)
 // ----------------------------------------------------------------
@@ -499,6 +501,48 @@ async function loadReportes() {
           </div>
         </div>
 
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.6rem">
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Formato de Salida</label>
+            <div id="xmlOutputFormatToggle" style="display:flex;gap:0;border:1px solid var(--g600);border-radius:6px;overflow:hidden;width:fit-content">
+              <button type="button" onclick="setOutputFormat('xml')" id="outFmtXml" class="fmt-btn fmt-active" style="padding:6px 16px;border:none;font-size:.75rem;cursor:pointer;font-weight:600;font-family:Inter,sans-serif;transition:all .15s">XML</button>
+              <button type="button" onclick="setOutputFormat('json')" id="outFmtJson" class="fmt-btn" style="padding:6px 16px;border:none;border-left:1px solid var(--g600);font-size:.75rem;cursor:pointer;font-weight:600;font-family:Inter,sans-serif;transition:all .15s">JSON</button>
+            </div>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label">Periodo</label>
+            <div id="xmlPeriodToggle" style="display:flex;gap:0;border:1px solid var(--g600);border-radius:6px;overflow:hidden;width:fit-content">
+              <button type="button" onclick="setPeriodType('diario')" id="perDiario" class="fmt-btn fmt-active" style="padding:6px 16px;border:none;font-size:.75rem;cursor:pointer;font-weight:600;font-family:Inter,sans-serif;transition:all .15s">Diario</button>
+              <button type="button" onclick="setPeriodType('mensual')" id="perMensual" class="fmt-btn" style="padding:6px 16px;border:none;border-left:1px solid var(--g600);font-size:.75rem;cursor:pointer;font-weight:600;font-family:Inter,sans-serif;transition:all .15s">Mensual</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="xmlMonthlySelector" style="display:none;margin-bottom:.6rem;padding:.6rem;background:rgba(13,148,136,.06);border-radius:8px;border:1px solid rgba(13,148,136,.15)">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem">
+            <div class="form-group" style="margin:0">
+              <label class="form-label">Mes</label>
+              <select class="form-select" id="xmlReportMonth">
+                <option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option>
+                <option value="4">Abril</option><option value="5">Mayo</option><option value="6">Junio</option>
+                <option value="7">Julio</option><option value="8">Agosto</option><option value="9">Septiembre</option>
+                <option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0">
+              <label class="form-label">Ano</label>
+              <select class="form-select" id="xmlReportYear">
+                <option value="2025">2025</option><option value="2026" selected>2026</option><option value="2027">2027</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin:0">
+              <label class="form-label">Estacion</label>
+              <select class="form-select" id="xmlMonthlyStation"></select>
+            </div>
+          </div>
+          <p style="color:var(--g400);font-size:.7rem;margin:.4rem 0 0">Genera el reporte mensual agregando los datos diarios almacenados en la base de datos.</p>
+        </div>
+
         <div id="xmlManualData">
           <div class="form-group" style="margin:0;margin-bottom:.6rem">
             <label class="form-label">Datos Operativos (lecturas de tanques, recepciones PEMEX, ventas del dia)</label>
@@ -560,7 +604,7 @@ TANQUE DIESEL (TQ-0003):
 
         <div style="display:flex;gap:.5rem;align-items:center">
           <button class="btn btn-primary" onclick="generateSatXml()" id="btnGenXml" style="background:var(--teal);padding:10px 24px;font-size:.82rem">
-            Generar XML con Loti
+            Generar SAT (XML)
           </button>
           <span id="xmlSpinner" style="display:none;color:var(--teal);font-size:.78rem">
             <span class="spinner" style="width:16px;height:16px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px"></span>
@@ -1199,7 +1243,7 @@ async function confirmExtractedData() {
     ` : ''}
     <div id="status_xml" style="display:flex;align-items:center;gap:.4rem;padding:.2rem 0;font-size:.72rem;color:var(--g500)">
       <span style="font-size:.8rem">&#9711;</span>
-      Generando reporte XML SAT/CNE...
+      Generando reporte SAT/CNE...
     </div>
   `;
   const footer = resultDiv.querySelector('div:last-child');
@@ -1367,10 +1411,67 @@ function setReportFormat(fmt) {
   });
   const btn = document.getElementById('btnGenXml');
   if (btn) {
-    const labels = {sat:'Generar XML SAT',cne:'Generar Reporte CNE',ambos:'Generar SAT + CNE'};
-    btn.textContent = labels[fmt] || 'Generar XML con Loti';
+    updateGenerateButtonLabel();
   }
 }
+function setOutputFormat(fmt) {
+  _outputFormat = fmt;
+  ['xml','json'].forEach(f => {
+    const b = document.getElementById('outFmt' + f.charAt(0).toUpperCase() + f.slice(1));
+    if (b) b.classList.toggle('fmt-active', f === fmt);
+  });
+  const btn = document.getElementById('btnGenXml');
+  if (btn) updateGenerateButtonLabel();
+}
+function setPeriodType(period) {
+  _periodType = period;
+  ['diario','mensual'].forEach(p => {
+    const b = document.getElementById('per' + p.charAt(0).toUpperCase() + p.slice(1));
+    if (b) b.classList.toggle('fmt-active', p === period);
+  });
+  const monthlyDiv = document.getElementById('xmlMonthlySelector');
+  const manualDiv = document.getElementById('xmlManualData');
+  const uploadDiv = document.getElementById('xmlUploadData');
+  const btnGen = document.getElementById('btnGenXml');
+  const btnExtract = document.getElementById('btnExtract');
+  if (period === 'mensual') {
+    if (monthlyDiv) monthlyDiv.style.display = 'block';
+    if (manualDiv) manualDiv.style.display = 'none';
+    if (uploadDiv) uploadDiv.style.display = 'none';
+    if (btnExtract) btnExtract.style.display = 'none';
+    loadMonthlyStations();
+  } else {
+    if (monthlyDiv) monthlyDiv.style.display = 'none';
+    toggleXmlDataSource();
+    if (btnExtract) btnExtract.style.display = '';
+  }
+  updateGenerateButtonLabel();
+}
+function updateGenerateButtonLabel() {
+  const btn = document.getElementById('btnGenXml');
+  if (!btn) return;
+  if (_periodType === 'mensual') {
+    btn.textContent = 'Generar Reporte Mensual (' + _outputFormat.toUpperCase() + ')';
+  } else {
+    const fmtLabels = {sat:'SAT',cne:'CNE',ambos:'SAT + CNE'};
+    btn.textContent = 'Generar ' + (fmtLabels[_reportFormat]||'Reporte') + ' (' + _outputFormat.toUpperCase() + ')';
+  }
+}
+async function loadMonthlyStations() {
+  const sel = document.getElementById('xmlMonthlyStation');
+  if (!sel || sel.options.length > 1) return;
+  try {
+    const stations = await apiGet('/api/stations');
+    sel.innerHTML = '';
+    (stations || []).forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = s.name;
+      sel.appendChild(opt);
+    });
+  } catch(e) { console.warn('Could not load stations:', e); }
+}
+
 
 function renderReportResult(result, formatLabel) {
   const v = result.validation || {};
@@ -1412,9 +1513,18 @@ async function generateSatXml() {
 
   try {
     let result;
-    if (source === 'database') {
+    if (_periodType === 'mensual') {
+      const stationId = document.getElementById('xmlMonthlyStation').value;
+      const month = document.getElementById('xmlReportMonth').value;
+      const year = document.getElementById('xmlReportYear').value;
+      if (!stationId) throw new Error('Selecciona una estacion para el reporte mensual.');
+      result = await apiPost('/api/sat-xml/generate-monthly', {
+        station_id: stationId, month: month, year: year,
+        format: _reportFormat, output_format: _outputFormat
+      });
+    } else if (source === 'database') {
       const fecha = document.getElementById('xmlFecha').value;
-      result = await apiPost('/api/sat-xml/generate-from-db', { date: fecha, format: _reportFormat });
+      result = await apiPost('/api/sat-xml/generate-from-db', { date: fecha, format: _reportFormat, period: _periodType, output_format: _outputFormat });
     } else {
       let rawData = document.getElementById('xmlRawData').value;
 
@@ -1438,6 +1548,8 @@ async function generateSatXml() {
         date: document.getElementById('xmlFecha').value,
         raw_data: rawData,
         format: _reportFormat,
+        period: _periodType,
+        output_format: _outputFormat,
       });
     }
 

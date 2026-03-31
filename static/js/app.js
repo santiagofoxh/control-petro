@@ -918,29 +918,7 @@ async function extractFromDocument() {
     const hasUncertain = tanques.some(t => t.uncertain) || recepciones.some(r => r.uncertain) || entregas.some(e => e.uncertain);
     const hasTanques = tanques.length > 0;
 
-    // If confidence is high, we have tanks, and nothing is uncertain -> go straight to generation
-    if (confidence >= 60 && hasTanques && !hasUncertain) {
-      resultDiv.style.display = 'block';
-      resultDiv.innerHTML = `
-        <div style="background:rgba(13,148,136,.06);border:1px solid var(--teal);border-radius:8px;padding:.8rem">
-          <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem">
-            <span style="background:var(--green);color:#000;font-weight:700;padding:3px 10px;border-radius:12px;font-size:.75rem">
-              Confianza: ${confidence}/100 (Alta)
-            </span>
-            <span style="color:var(--g400);font-size:.75rem">Datos extraidos de <strong>${uploadedFile.name}</strong></span>
-          </div>
-          <div style="color:var(--teal);font-size:.82rem;font-weight:600;margin-top:.4rem">
-            Todos los datos fueron extraidos exitosamente. Generando reporte...
-          </div>
-          <div style="color:var(--g500);font-size:.72rem;margin-top:.3rem">
-            ${tanques.length} tanque(s), ${recepciones.length} recepcion(es), ${entregas.length} entrega(s)
-          </div>
-        </div>`;
-      // Go straight to XML generation — no manual review needed
-      confirmExtractedData();
-      return;
-    }
-
+    // Always show visual review UI for user confirmation
     // ---- If we get here, there are uncertain/missing fields — show review UI ----
     const confColor = confidence >= 80 ? 'var(--green)' : confidence >= 50 ? 'var(--orange)' : 'var(--red)';
     const confLabel = confidence >= 80 ? 'Alta' : confidence >= 50 ? 'Media' : 'Baja';

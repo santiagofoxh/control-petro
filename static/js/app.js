@@ -983,68 +983,183 @@ async function extractFromDocument() {
 
     const tokensHtml = tokens ? `<span style="color:var(--g500);font-size:.68rem;margin-left:8px">(${tokens.input + tokens.output} tokens)</span>` : '';
 
+    // Calculate summary stats
+    const totalRecibidos = recepciones.reduce((sum, r) => sum + (parseFloat(r.litros) || 0), 0);
+    const totalVendidos = entregas.reduce((sum, e) => sum + (parseFloat(e.litros) || 0), 0);
+    const fuelBreakdown = {};
+    tanques.forEach(t => {
+      const prod = (t.producto || 'magna').toLowerCase();
+      if (!fuelBreakdown[prod]) fuelBreakdown[prod] = { recibidos: 0, vendidos: 0, invFinal: 0 };
+      fuelBreakdown[prod].invFinal += parseFloat(t.inventario_final) || 0;
+    });
+    recepciones.forEach(r => {
+      const tank = tanques.find(t => t.nombre === r.tanque);
+      const prod = tank ? (tank.producto || 'magna').toLowerCase() : 'magna';
+      if (!fuelBreakdown[prod]) fuelBreakdown[prod] = { recibidos: 0, vendidos: 0, invFinal: 0 };
+      fuelBreakdown[prod].recibidos += parseFloat(r.litros) || 0;
+    });
+    entregas.forEach(e => {
+      const tank = tanques.find(t => t.nombre === e.tanque);
+      const prod = tank ? (tank.producto || 'magna').toLowerCase() : 'magna';
+      if (!fuelBreakdown[prod]) fuelBreakdown[prod] = { recibidos: 0, vendidos: 0, invFinal: 0 };
+      fuelBreakdown[prod].vendidos += parseFloat(e.litros) || 0;
+    });
+
+    // Build stations options for selector
+    const stationsOpts = stationsList.map(s => `<option value="${s.id}">${s.code} - ${s.name}</option>`).join('');
+
+    // Fuel breakdown mini-cards
+    const fuelColors = { magna: '#22c55e', premium: '#ef4444', diesel: '#eab308' };
+    const fuelLabels = { magna: 'Magna', premium: 'Premium', diesel: 'Diesel' };
+    const fuelCardsHtml = Object.keys(fuelBreakdown).map(fuel => {
+      const fb = fuelBreakdown[fuel];
+      return `<div style="flex:1;min-width:120px;background:rgba(${fuel === 'magna' ? '34,197,94' : fuel === 'premium' ? '239,68,68' : '234,179,8'},.08);border:1px solid ${fuelColors[fuel]}30;border-radius:8px;padding:.5rem .6rem">
+        <div style="font-size:.68rem;font-weight:700;color:${fuelColors[fuel]};text-transform:uppercase;letter-spacing:.5px;margin-bottom:.3rem">${fuelLabels[fuel] || fuel}</div>
+        <div style="display:flex;flex-direction:column;gap:.15rem">
+          ${fb.recibidos > 0 ? `<div style="font-size:.72rem;color:var(--g300)"><span style="color:var(--green)">&#9650;</span> ${fb.recibidos.toLocaleString()}L recibidos</div>` : ''}
+          ${fb.vendidos > 0 ? `<div style="font-size:.72rem;color:var(--g300)"><span style="color:var(--orange)">&#9660;</span> ${fb.vendidos.toLocaleString()}L vendidos</div>` : ''}
+          ${fb.invFinal > 0 ? `<div style="font-size:.72rem;color:var(--g300)">&#9632; ${fb.invFinal.toLocaleString()}L inv. final</div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+
     resultDiv.style.display = 'block';
     resultDiv.innerHTML = `
-      <div style="background:rgba(13,148,136,.06);border:1px solid var(--teal);border-radius:8px;padding:.8rem">
-        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;flex-wrap:wrap">
-          <span style="background:${confColor};color:#000;font-weight:700;padding:3px 10px;border-radius:12px;font-size:.75rem">
-            Confianza: ${confidence}/100 (${confLabel})
-          </span>
-          <span style="color:var(--g400);font-size:.75rem">Datos extraidos de <strong>${uploadedFile.name}</strong></span>
-          ${tokensHtml}
+      <div style="border-radius:12px;overflow:hidden;border:1px solid var(--teal)">
+
+        <!-- HEADER: Source + Confidence -->
+        <div style="background:linear-gradient(135deg, rgba(13,148,136,.15), rgba(13,148,136,.05));padding:.7rem .9rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.4rem;border-bottom:1px solid rgba(13,148,136,.2)">
+          <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+            <span style="font-size:1.1rem">&#128196;</span>
+            <span style="color:var(--w);font-size:.82rem;font-weight:600">Datos Extraidos</span>
+            <span style="color:var(--g400);font-size:.73rem">de <strong>${uploadedFile.name}</strong></span>
+          </div>
+          <div style="display:flex;align-items:center;gap:.4rem">
+            <span style="background:${confColor};color:#000;font-weight:700;padding:3px 12px;border-radius:12px;font-size:.72rem">
+              ${confidence}/100
+            </span>
+            <span style="color:var(--g400);font-size:.7rem">Confianza ${confLabel}</span>
+            ${tokensHtml}
+          </div>
         </div>
-        <div style="background:rgba(249,115,22,.1);border-radius:6px;padding:.5rem .7rem;margin-bottom:.5rem;border-left:3px solid var(--orange)">
-          <span style="color:var(--orange);font-size:.78rem;font-weight:600">\u26A0 Algunos datos requieren revision</span>
-          <span style="color:var(--g400);font-size:.72rem;display:block;margin-top:.2rem">Revisa los campos marcados con \u26A0 y completa la informacion faltante.</span>
+
+        <!-- SUMMARY CARDS ROW -->
+        <div style="padding:.7rem .9rem;background:rgba(0,0,0,.15);border-bottom:1px solid rgba(255,255,255,.05)">
+          <div style="display:flex;gap:.5rem;margin-bottom:.5rem">
+            <div style="flex:1;background:rgba(13,148,136,.1);border:1px solid rgba(13,148,136,.25);border-radius:8px;padding:.5rem .6rem;text-align:center">
+              <div style="font-size:1.3rem;font-weight:700;color:var(--teal)">${tanques.length}</div>
+              <div style="font-size:.68rem;color:var(--g400);font-weight:500">Tanques</div>
+            </div>
+            <div style="flex:1;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25);border-radius:8px;padding:.5rem .6rem;text-align:center">
+              <div style="font-size:1.3rem;font-weight:700;color:var(--green)">${totalRecibidos.toLocaleString()}L</div>
+              <div style="font-size:.68rem;color:var(--g400);font-weight:500">Total Recibido</div>
+            </div>
+            <div style="flex:1;background:rgba(249,115,22,.08);border:1px solid rgba(249,115,22,.25);border-radius:8px;padding:.5rem .6rem;text-align:center">
+              <div style="font-size:1.3rem;font-weight:700;color:var(--orange)">${totalVendidos.toLocaleString()}L</div>
+              <div style="font-size:.68rem;color:var(--g400);font-weight:500">Total Vendido</div>
+            </div>
+            <div style="flex:1;background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.25);border-radius:8px;padding:.5rem .6rem;text-align:center">
+              <div style="font-size:1.3rem;font-weight:700;color:#818cf8">${fechaVal}</div>
+              <div style="font-size:.68rem;color:var(--g400);font-weight:500">Fecha Operacion</div>
+            </div>
+          </div>
+          <!-- Fuel breakdown mini-cards -->
+          <div style="display:flex;gap:.4rem;flex-wrap:wrap">${fuelCardsHtml}</div>
         </div>
-        ${notesHtml}
-        <div style="margin-top:.6rem">
-          <div style="color:var(--w);font-size:.78rem;font-weight:600;margin-bottom:.3rem">Tanques</div>
+
+        ${notesHtml ? `<div style="padding:.5rem .9rem;border-bottom:1px solid rgba(255,255,255,.05)">${notesHtml}</div>` : ''}
+
+        <!-- EDITABLE DATA TABLES -->
+        <div style="padding:.7rem .9rem">
+          <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.4rem">
+            <span style="font-size:.85rem">&#128203;</span>
+            <span style="color:var(--w);font-size:.78rem;font-weight:600">Detalle de Datos (editable)</span>
+            <span style="color:var(--g500);font-size:.68rem;margin-left:auto">Haz clic en cualquier campo para editar</span>
+          </div>
+
+          <div style="color:var(--teal);font-size:.74rem;font-weight:600;margin-bottom:.3rem;margin-top:.3rem">Tanques</div>
           <div class="table-wrap" style="margin-bottom:.5rem">
             <table style="font-size:.72rem">
               <thead><tr><th>Tanque</th><th>Producto</th><th>Capacidad (L)</th><th>Inv. Inicial</th><th>Inv. Final</th><th>OK</th></tr></thead>
               <tbody>${tanquesRows || '<tr><td colspan="6" style="color:var(--g500);text-align:center">No se detectaron tanques</td></tr>'}</tbody>
             </table>
           </div>
-        </div>
-        ${recepciones.length > 0 ? `<div style="margin-top:.5rem">
-          <div style="color:var(--w);font-size:.78rem;font-weight:600;margin-bottom:.3rem">Recepciones</div>
+
+          ${recepciones.length > 0 ? `<div style="color:var(--green);font-size:.74rem;font-weight:600;margin-bottom:.3rem">&#9650; Recepciones</div>
           <div class="table-wrap" style="margin-bottom:.5rem">
             <table style="font-size:.72rem">
               <thead><tr><th>Tanque</th><th>Litros</th><th>Proveedor</th><th>Factura</th><th>$/L</th><th>OK</th></tr></thead>
               <tbody>${recepRows}</tbody>
             </table>
-          </div>
-        </div>` : ''}
-        ${entregas.length > 0 ? `<div style="margin-top:.5rem">
-          <div style="color:var(--w);font-size:.78rem;font-weight:600;margin-bottom:.3rem">Entregas/Ventas</div>
+          </div>` : ''}
+
+          ${entregas.length > 0 ? `<div style="color:var(--orange);font-size:.74rem;font-weight:600;margin-bottom:.3rem">&#9660; Entregas / Ventas</div>
           <div class="table-wrap" style="margin-bottom:.5rem">
             <table style="font-size:.72rem">
               <thead><tr><th>Tanque</th><th>Litros</th><th>Dispensario</th><th>OK</th></tr></thead>
               <tbody>${entregRows}</tbody>
             </table>
-          </div>
-        </div>` : ''}
-        <div style="margin-top:.6rem;padding:.5rem;background:rgba(249,115,22,.06);border:1px solid var(--orange);border-radius:6px">
-          <label class="form-label" style="font-size:.75rem;color:var(--orange);margin-bottom:.3rem">Estacion (para guardar datos en Dashboard y Predicciones)</label>
-          <select class="form-select" id="ext_station_id" style="font-size:.78rem;padding:6px 8px">
-            <option value="">-- No guardar en base de datos --</option>
-            ${stationsList.map(s => `<option value="${s.id}">${s.code} - ${s.name}</option>`).join('')}
-          </select>
-          <p style="color:var(--g500);font-size:.68rem;margin:.3rem 0 0">Selecciona una estacion para que los datos extraidos se guarden automaticamente en el dashboard, inventario y predicciones.</p>
+          </div>` : ''}
         </div>
 
-        <div style="margin-top:.6rem;display:flex;gap:.5rem">
-          <button class="btn btn-primary" onclick="confirmExtractedData()" style="background:var(--green);padding:8px 20px;font-size:.8rem">
-            Confirmar y Generar XML
-          </button>
-          <button class="btn btn-outline" onclick="extractFromDocument()" style="padding:8px 16px;font-size:.78rem">
-            Re-analizar
-          </button>
+        <!-- DATA DESTINATION SECTION -->
+        <div style="padding:.7rem .9rem;background:rgba(0,0,0,.15);border-top:1px solid rgba(255,255,255,.05);border-bottom:1px solid rgba(255,255,255,.05)">
+          <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.5rem">
+            <span style="font-size:.85rem">&#127919;</span>
+            <span style="color:var(--w);font-size:.78rem;font-weight:600">Destino de los Datos</span>
+          </div>
+          <div style="display:flex;gap:.4rem;margin-bottom:.5rem;flex-wrap:wrap">
+            <div style="flex:1;min-width:140px;background:rgba(13,148,136,.08);border:1px solid rgba(13,148,136,.2);border-radius:8px;padding:.5rem;display:flex;align-items:flex-start;gap:.4rem">
+              <span style="font-size:1rem;line-height:1">&#128202;</span>
+              <div>
+                <div style="font-size:.73rem;font-weight:600;color:var(--teal)">Reporte XML SAT/CNE</div>
+                <div style="font-size:.66rem;color:var(--g400)">Se generara automaticamente el XML validado listo para subir al portal del SAT</div>
+              </div>
+            </div>
+            <div style="flex:1;min-width:140px;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.15);border-radius:8px;padding:.5rem;display:flex;align-items:flex-start;gap:.4rem">
+              <span style="font-size:1rem;line-height:1">&#128200;</span>
+              <div>
+                <div style="font-size:.73rem;font-weight:600;color:var(--green)">Dashboard</div>
+                <div style="font-size:.66rem;color:var(--g400)">Los KPIs de litros vendidos y recibidos se actualizaran en tiempo real</div>
+              </div>
+            </div>
+            <div style="flex:1;min-width:140px;background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.15);border-radius:8px;padding:.5rem;display:flex;align-items:flex-start;gap:.4rem">
+              <span style="font-size:1rem;line-height:1">&#128230;</span>
+              <div>
+                <div style="font-size:.73rem;font-weight:600;color:#818cf8">Inventario</div>
+                <div style="font-size:.66rem;color:var(--g400)">Los niveles de tanques se actualizaran con los inventarios finales extraidos</div>
+              </div>
+            </div>
+            <div style="flex:1;min-width:140px;background:rgba(249,115,22,.06);border:1px solid rgba(249,115,22,.15);border-radius:8px;padding:.5rem;display:flex;align-items:flex-start;gap:.4rem">
+              <span style="font-size:1rem;line-height:1">&#129504;</span>
+              <div>
+                <div style="font-size:.73rem;font-weight:600;color:var(--orange)">Prediccion IA</div>
+                <div style="font-size:.66rem;color:var(--g400)">Las recomendaciones de pedido se recalcularan con estos nuevos datos</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Station selector -->
+          <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:.5rem .6rem">
+            <label style="font-size:.73rem;font-weight:600;color:var(--w);display:block;margin-bottom:.3rem">Selecciona la Estacion</label>
+            <select class="form-select" id="ext_station_id" style="font-size:.78rem;padding:6px 10px;width:100%">
+              <option value="">-- Solo generar reporte XML (no guardar en base de datos) --</option>
+              ${stationsOpts}
+            </select>
+            <p style="color:var(--g500);font-size:.66rem;margin:.3rem 0 0">Si seleccionas una estacion, los datos se guardaran en el dashboard, inventario y predicciones automaticamente.</p>
+          </div>
         </div>
-        <p style="color:var(--g500);font-size:.68rem;margin-top:.4rem;margin-bottom:0">
-          Revisa y edita los datos extraidos antes de generar el XML. Los campos marcados con \u26A0 requieren atencion.
-        </p>
+
+        <!-- CONFIRMATION FOOTER -->
+        <div style="padding:.7rem .9rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="confirmExtractedData()" style="background:var(--green);padding:10px 28px;font-size:.82rem;font-weight:600;border-radius:8px;display:flex;align-items:center;gap:.4rem">
+            <span style="font-size:1rem">&#10003;</span> Confirmar y Procesar
+          </button>
+          <button class="btn btn-outline" onclick="extractFromDocument()" style="padding:8px 16px;font-size:.78rem;border-radius:8px">
+            &#8635; Re-analizar
+          </button>
+          <span style="color:var(--g500);font-size:.68rem;margin-left:auto">Los campos marcados con &#x26A0; pueden requerir revision manual</span>
+        </div>
       </div>`;
   } catch(e) {
     resultDiv.style.display = 'block';
@@ -1066,16 +1181,74 @@ async function confirmExtractedData() {
   const recepciones = extractedData.recepciones || [];
   const entregas = extractedData.entregas || [];
 
-  let rawLines = [];
   const fecha = document.getElementById('xmlFecha').value;
+  const stationSelect = document.getElementById('ext_station_id');
+  const stationId = stationSelect ? parseInt(stationSelect.value) : null;
+  const stationLabel = stationSelect && stationId ? stationSelect.options[stationSelect.selectedIndex].text : null;
+
+  // Show processing overlay in the result area
+  const resultDiv = document.getElementById('xmlExtractResult');
+  const confirmBtn = resultDiv.querySelector('.btn-primary');
+  if (confirmBtn) {
+    confirmBtn.disabled = true;
+    confirmBtn.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;margin-right:6px"></span> Procesando...';
+  }
+
+  // Build status tracker HTML
+  const statusTracker = document.createElement('div');
+  statusTracker.id = 'confirmStatusTracker';
+  statusTracker.style.cssText = 'margin-top:.6rem;padding:.6rem .8rem;background:rgba(0,0,0,.2);border-radius:8px;border:1px solid rgba(255,255,255,.06)';
+  statusTracker.innerHTML = `
+    <div style="font-size:.76rem;font-weight:600;color:var(--w);margin-bottom:.4rem">Procesando datos...</div>
+    <div id="status_rawdata" style="display:flex;align-items:center;gap:.4rem;padding:.2rem 0;font-size:.72rem;color:var(--g400)">
+      <span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block"></span>
+      Preparando datos operativos...
+    </div>
+    ${stationId ? `
+    <div id="status_transactions" style="display:flex;align-items:center;gap:.4rem;padding:.2rem 0;font-size:.72rem;color:var(--g500)">
+      <span style="font-size:.8rem">&#9711;</span>
+      Guardando transacciones en Dashboard...
+    </div>
+    <div id="status_inventory" style="display:flex;align-items:center;gap:.4rem;padding:.2rem 0;font-size:.72rem;color:var(--g500)">
+      <span style="font-size:.8rem">&#9711;</span>
+      Actualizando niveles de Inventario...
+    </div>
+    <div id="status_predictions" style="display:flex;align-items:center;gap:.4rem;padding:.2rem 0;font-size:.72rem;color:var(--g500)">
+      <span style="font-size:.8rem">&#9711;</span>
+      Recalculando Predicciones IA...
+    </div>
+    ` : ''}
+    <div id="status_xml" style="display:flex;align-items:center;gap:.4rem;padding:.2rem 0;font-size:.72rem;color:var(--g500)">
+      <span style="font-size:.8rem">&#9711;</span>
+      Generando reporte XML SAT/CNE...
+    </div>
+  `;
+  const footer = resultDiv.querySelector('div:last-child');
+  if (footer) footer.parentNode.insertBefore(statusTracker, footer);
+
+  function updateStatus(id, state, msg) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (state === 'working') {
+      el.style.color = 'var(--g300)';
+      el.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block"></span> ${msg || el.textContent}`;
+    } else if (state === 'done') {
+      el.style.color = 'var(--green)';
+      el.innerHTML = `<span style="font-size:.8rem">&#10004;</span> ${msg || el.textContent}`;
+    } else if (state === 'error') {
+      el.style.color = 'var(--red)';
+      el.innerHTML = `<span style="font-size:.8rem">&#10008;</span> ${msg || el.textContent}`;
+    }
+  }
+
+  // STEP 1: Build raw data text
+  let rawLines = [];
   rawLines.push(`FECHA: ${fecha}`);
   rawLines.push('');
 
-  // Collect structured data for DB save
   const dbTransactions = [];
   const dbInventoryReadings = [];
 
-  // Tanks
   tanques.forEach((t, i) => {
     const nombre = (document.getElementById(`ext_tq_nombre_${i}`) || {}).value || t.nombre;
     const prod = (document.getElementById(`ext_tq_prod_${i}`) || {}).value || t.producto;
@@ -1087,7 +1260,6 @@ async function confirmExtractedData() {
     rawLines.push(`  Capacidad: ${cap}L`);
     rawLines.push(`  Inventario Inicial: ${ini}L`);
 
-    // Track inventory final reading for DB
     if (fin && prod) {
       dbInventoryReadings.push({
         fuel_type: prod.toLowerCase(),
@@ -1095,7 +1267,6 @@ async function confirmExtractedData() {
       });
     }
 
-    // Find receptions for this tank
     recepciones.forEach((r, j) => {
       const rTq = (document.getElementById(`ext_rec_tq_${j}`) || {}).value || r.tanque;
       if (rTq === nombre || rTq === t.nombre) {
@@ -1105,8 +1276,6 @@ async function confirmExtractedData() {
         const precio = (document.getElementById(`ext_rec_precio_${j}`) || {}).value || r.precio_litro;
         rawLines.push(`  Recepcion: ${litros}L (Factura ${fact}, Proveedor: ${prov}, RFC: ${r.rfc_proveedor || 'N/A'})`);
         rawLines.push(`  Precio por litro: $${precio}`);
-
-        // Add to DB transactions
         dbTransactions.push({
           fuel_type: prod.toLowerCase(),
           transaction_type: 'received',
@@ -1118,7 +1287,6 @@ async function confirmExtractedData() {
       }
     });
 
-    // Find deliveries for this tank
     let totalEntregas = 0;
     entregas.forEach((e, j) => {
       const eTq = (document.getElementById(`ext_ent_tq_${j}`) || {}).value || e.tanque;
@@ -1127,8 +1295,6 @@ async function confirmExtractedData() {
         const disp = (document.getElementById(`ext_ent_disp_${j}`) || {}).value || e.dispensario;
         totalEntregas += parseFloat(litros) || 0;
         rawLines.push(`  Litros Vendidos: ${litros}L via ${disp}`);
-
-        // Add to DB transactions
         dbTransactions.push({
           fuel_type: prod.toLowerCase(),
           transaction_type: 'sold',
@@ -1144,61 +1310,75 @@ async function confirmExtractedData() {
     rawLines.push('');
   });
 
-  // Set the raw data textarea and switch to manual mode for generation
+  // Set raw data
   const rawDataEl = document.getElementById('xmlRawData');
   if (rawDataEl) rawDataEl.value = rawLines.join('\n');
-
-  // Switch source to manual so generateSatXml picks up the textarea
   document.getElementById('xmlSource').value = 'manual';
   toggleXmlDataSource();
 
-  // ---- Save to database if station selected ----
-  const stationSelect = document.getElementById('ext_station_id');
-  const stationId = stationSelect ? parseInt(stationSelect.value) : null;
+  updateStatus('status_rawdata', 'done', 'Datos operativos preparados');
 
+  // STEP 2: Save to database if station selected
   if (stationId && dbTransactions.length > 0) {
     try {
-      // Save transactions (received + sold)
+      updateStatus('status_transactions', 'working', `Guardando ${dbTransactions.length} transacciones en Dashboard...`);
       const txnResult = await apiPost('/api/ingest/transactions', {
         station_id: stationId,
         transactions: dbTransactions
       });
+      updateStatus('status_transactions', 'done', `${txnResult.created_count || dbTransactions.length} transacciones guardadas en Dashboard`);
 
-      // Save inventory snapshot
       if (dbInventoryReadings.length > 0) {
+        updateStatus('status_inventory', 'working', 'Actualizando niveles de Inventario...');
         await apiPost('/api/ingest/inventory', {
           station_id: stationId,
           readings: dbInventoryReadings,
           snapshot_date: fecha
         });
+        updateStatus('status_inventory', 'done', `${dbInventoryReadings.length} lecturas de inventario actualizadas`);
+      } else {
+        updateStatus('status_inventory', 'done', 'Sin lecturas de inventario para actualizar');
       }
 
-      // Show success notification
-      const resultDiv = document.getElementById('xmlExtractResult');
-      if (resultDiv) {
-        const successBanner = document.createElement('div');
-        successBanner.className = 'form-msg success';
-        successBanner.style.cssText = 'margin-bottom:.5rem;padding:.5rem .8rem;font-size:.78rem';
-        successBanner.innerHTML = `Datos guardados en base de datos: ${txnResult.created_count || dbTransactions.length} transacciones registradas para ${txnResult.station || 'la estacion'}. El dashboard y predicciones se actualizaran automaticamente.`;
-        resultDiv.prepend(successBanner);
-      }
+      updateStatus('status_predictions', 'done', 'Predicciones se recalcularan automaticamente');
 
-      console.log('DB save success:', txnResult);
     } catch (dbErr) {
-      console.warn('Could not save to DB (XML generation will continue):', dbErr);
-      const resultDiv = document.getElementById('xmlExtractResult');
-      if (resultDiv) {
-        const warnBanner = document.createElement('div');
-        warnBanner.className = 'form-msg error';
-        warnBanner.style.cssText = 'margin-bottom:.5rem;padding:.5rem .8rem;font-size:.78rem';
-        warnBanner.innerHTML = `Nota: No se pudieron guardar los datos en la base de datos (${dbErr.message}). El reporte XML se generara normalmente.`;
-        resultDiv.prepend(warnBanner);
-      }
+      console.warn('DB save error:', dbErr);
+      updateStatus('status_transactions', 'error', `Error guardando: ${dbErr.message}`);
+      updateStatus('status_inventory', 'error', 'Omitido por error previo');
+      updateStatus('status_predictions', 'error', 'Omitido por error previo');
     }
   }
 
-  // Auto-trigger XML generation
-  generateSatXml();
+  // STEP 3: Generate XML
+  updateStatus('status_xml', 'working', 'Generando reporte XML SAT/CNE con IA...');
+  try {
+    await generateSatXml();
+    updateStatus('status_xml', 'done', 'Reporte XML generado exitosamente');
+  } catch (xmlErr) {
+    updateStatus('status_xml', 'error', `Error generando XML: ${xmlErr.message}`);
+  }
+
+  // Show final success summary
+  const tracker = document.getElementById('confirmStatusTracker');
+  if (tracker) {
+    const successBanner = document.createElement('div');
+    successBanner.style.cssText = 'margin-top:.5rem;padding:.5rem .6rem;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:6px;display:flex;align-items:center;gap:.4rem';
+    successBanner.innerHTML = `
+      <span style="font-size:1.2rem">&#10004;</span>
+      <div>
+        <div style="font-size:.78rem;font-weight:600;color:var(--green)">Procesamiento completado</div>
+        <div style="font-size:.68rem;color:var(--g400)">${stationId ? `Datos guardados para ${stationLabel}. ` : ''}Revisa el resultado del reporte XML arriba.</div>
+      </div>
+    `;
+    tracker.appendChild(successBanner);
+  }
+
+  // Re-enable button
+  if (confirmBtn) {
+    confirmBtn.disabled = false;
+    confirmBtn.innerHTML = '<span style="font-size:1rem">&#10003;</span> Confirmar y Procesar';
+  }
 }
 function setReportFormat(fmt) {
   _reportFormat = fmt;
@@ -1264,7 +1444,7 @@ async function generateSatXml() {
         spinner.style.display = 'none';
         btn.disabled = false;
         await extractFromDocument();
-        return; // extractFromDocument shows confirmation UI; user clicks "Confirmar y Generar XML"
+        return; // extractFromDocument shows confirmation UI; user clicks "Confirmar y Procesar"
       }
 
       if (!rawData.trim()) {

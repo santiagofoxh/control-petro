@@ -1,5 +1,4 @@
-"sitemap.xml
-""Control Petro v2 - AI platform for Mexican petroleum distributors.
+"""Control Petro v2 - AI platform for Mexican petroleum distributors.
 
 Now with multi-tenant auth, organization hierarchy, and OpenClaw integration.
 """

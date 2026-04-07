@@ -83,6 +83,10 @@ def article():
 def info():
     return send_from_directory("static", "info.html")
 
+@app.route("/erp-comercializadora")
+def erp_comercializadora():
+        return send_from_directory("static", "erp-comercializadora.html")
+
 
 # ------------------------------------------------------------------ #
 # SEO: robots.txt and sitemap.xml served at root

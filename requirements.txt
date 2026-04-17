@@ -8,3 +8,9 @@ python-docx==1.2.0
 pdfplumber==0.11.0
 psycopg2-binary==2.9.9
 PyJWT==2.9.0
+# Pemex TAR Bot dependencies
+cryptography==44.0.0
+apscheduler==3.10.4
+playwright==1.49.0
+httpx==0.28.0
+beautifulsoup4==4.12.3

@@ -1567,7 +1567,358 @@ def update_comercializadora_order(order_id):
     return jsonify({"success": True, "order": order})
 
 
+# ================================================================== #
+# Pemex TAR Bot API Endpoints
+# ================================================================== #
+
+from database import (
+    TARTerminal, TARAvailability, TARDeliverySchedule,
+    PemexPrice, PemexAlert, PemexCredential, ScrapeLog,
+)
+
+
+@app.route("/api/pemex/tar")
+@optional_auth
+def api_pemex_tar_list():
+    """List all TAR terminals with their latest availability snapshot."""
+    terminals = TARTerminal.query.filter_by(active=True).order_by(TARTerminal.state, TARTerminal.name).all()
+    result = []
+    for t in terminals:
+        # Get latest availability per fuel type
+        fuels = {}
+        for ft in ["magna", "premium", "diesel"]:
+            has_fuel = getattr(t, f"has_{ft}", True)
+            if not has_fuel:
+                continue
+            latest = TARAvailability.query.filter_by(
+                tar_id=t.id, fuel_type=ft
+            ).order_by(TARAvailability.scraped_at.desc()).first()
+            fuels[ft] = {
+                "status": latest.status if latest else "unknown",
+                "level_percent": latest.level_percent if latest else None,
+                "estimated_liters": latest.estimated_liters if latest else None,
+                "wait_time_minutes": latest.wait_time_minutes if latest else None,
+                "last_update": latest.scraped_at.isoformat() if latest else None,
+            }
+
+        # Determine overall status
+        statuses = [f["status"] for f in fuels.values()]
+        if "closed" in statuses:
+            overall = "closed"
+        elif "limited" in statuses:
+            overall = "limited"
+        elif all(s == "available" for s in statuses):
+            overall = "available"
+        elif all(s == "unknown" for s in statuses):
+            overall = "no_data"
+        else:
+            overall = "partial"
+
+        result.append({
+            "id": t.id,
+            "pemex_id": t.pemex_id,
+            "name": t.name,
+            "short_name": t.short_name,
+            "state": t.state,
+            "city": t.city,
+            "region": t.region,
+            "latitude": t.latitude,
+            "longitude": t.longitude,
+            "overall_status": overall,
+            "fuels": fuels,
+        })
+    return jsonify(result)
+
+
+@app.route("/api/pemex/tar/<int:tar_id>")
+@optional_auth
+def api_pemex_tar_detail(tar_id):
+    """Get TAR terminal detail with recent availability history."""
+    tar = TARTerminal.query.get_or_404(tar_id)
+    hours = request.args.get("hours", 24, type=int)
+    since = datetime.utcnow() - timedelta(hours=hours)
+
+    fuels = {}
+    for ft in ["magna", "premium", "diesel"]:
+        if not getattr(tar, f"has_{ft}", True):
+            continue
+        history = TARAvailability.query.filter(
+            TARAvailability.tar_id == tar.id,
+            TARAvailability.fuel_type == ft,
+            TARAvailability.scraped_at >= since,
+        ).order_by(TARAvailability.scraped_at.desc()).all()
+
+        fuels[ft] = [{
+            "status": h.status,
+            "level_percent": h.level_percent,
+            "estimated_liters": h.estimated_liters,
+            "wait_time_minutes": h.wait_time_minutes,
+            "scraped_at": h.scraped_at.isoformat(),
+        } for h in history]
+
+    # Active alerts for this TAR
+    alerts = PemexAlert.query.filter(
+        PemexAlert.tar_id == tar.id,
+        PemexAlert.is_active == True,
+    ).order_by(PemexAlert.scraped_at.desc()).limit(10).all()
+
+    return jsonify({
+        "id": tar.id,
+        "pemex_id": tar.pemex_id,
+        "name": tar.name,
+        "state": tar.state,
+        "city": tar.city,
+        "region": tar.region,
+        "latitude": tar.latitude,
+        "longitude": tar.longitude,
+        "has_magna": tar.has_magna,
+        "has_premium": tar.has_premium,
+        "has_diesel": tar.has_diesel,
+        "storage_capacity_liters": tar.storage_capacity_liters,
+        "availability_history": fuels,
+        "alerts": [{
+            "id": a.id,
+            "type": a.alert_type,
+            "title": a.title,
+            "description": a.description,
+            "severity": a.severity,
+            "from": a.effective_from.isoformat() if a.effective_from else None,
+            "until": a.effective_until.isoformat() if a.effective_until else None,
+        } for a in alerts],
+    })
+
+
+@app.route("/api/pemex/schedules")
+@require_auth
+def api_pemex_schedules():
+    """Get upcoming delivery schedules for the current user's organization."""
+    razon_ids = get_accessible_razon_ids()
+    cred_ids = [c.id for c in PemexCredential.query.filter(
+        PemexCredential.razon_social_id.in_(razon_ids)
+    ).all()] if razon_ids else []
+
+    if not cred_ids:
+        return jsonify([])
+
+    target_date = request.args.get("date")
+    query = TARDeliverySchedule.query.filter(
+        TARDeliverySchedule.credential_id.in_(cred_ids)
+    )
+    if target_date:
+        query = query.filter_by(scheduled_date=date.fromisoformat(target_date))
+    else:
+        # Next 7 days by default
+        query = query.filter(TARDeliverySchedule.scheduled_date >= date.today())
+
+    schedules = query.order_by(
+        TARDeliverySchedule.scheduled_date, TARDeliverySchedule.shift_code
+    ).limit(100).all()
+
+    return jsonify([{
+        "id": s.id,
+        "tar": {
+            "id": s.terminal.id,
+            "name": s.terminal.name,
+            "city": s.terminal.city,
+        } if s.terminal else None,
+        "scheduled_date": s.scheduled_date.isoformat(),
+        "shift_code": s.shift_code,
+        "shift_time": s.shift_time,
+        "fuel_type": s.fuel_type,
+        "volume_liters": s.volume_liters,
+        "status": s.status,
+        "scraped_at": s.scraped_at.isoformat() if s.scraped_at else None,
+    } for s in schedules])
+
+
+@app.route("/api/pemex/prices")
+@optional_auth
+def api_pemex_prices():
+    """Get latest Pemex fuel prices."""
+    latest_date = db.session.query(
+        db.func.max(PemexPrice.effective_date)
+    ).scalar()
+
+    if not latest_date:
+        return jsonify({"prices": [], "latest_date": None})
+
+    prices = PemexPrice.query.filter_by(
+        effective_date=latest_date
+    ).order_by(PemexPrice.region, PemexPrice.fuel_type).all()
+
+    return jsonify({
+        "latest_date": latest_date.isoformat(),
+        "prices": [{
+            "id": p.id,
+            "region": p.region,
+            "tar_id": p.tar_id,
+            "fuel_type": p.fuel_type,
+            "price_per_liter": p.price_per_liter,
+            "price_type": p.price_type,
+        } for p in prices],
+    })
+
+
+@app.route("/api/pemex/prices/history")
+@optional_auth
+def api_pemex_price_history():
+    """Get price history for a fuel type over time."""
+    fuel_type = request.args.get("fuel_type", "magna")
+    days = request.args.get("days", 30, type=int)
+    since = date.today() - timedelta(days=days)
+
+    prices = PemexPrice.query.filter(
+        PemexPrice.fuel_type == fuel_type,
+        PemexPrice.effective_date >= since,
+    ).order_by(PemexPrice.effective_date).all()
+
+    return jsonify([{
+        "date": p.effective_date.isoformat(),
+        "price": p.price_per_liter,
+        "region": p.region,
+    } for p in prices])
+
+
+@app.route("/api/pemex/alerts")
+@optional_auth
+def api_pemex_alerts():
+    """Get active Pemex operational alerts."""
+    alerts = PemexAlert.query.filter_by(
+        is_active=True
+    ).order_by(PemexAlert.scraped_at.desc()).limit(50).all()
+
+    return jsonify([{
+        "id": a.id,
+        "tar": {
+            "id": a.terminal.id,
+            "name": a.terminal.name,
+        } if a.terminal else None,
+        "type": a.alert_type,
+        "title": a.title,
+        "description": a.description,
+        "severity": a.severity,
+        "from": a.effective_from.isoformat() if a.effective_from else None,
+        "until": a.effective_until.isoformat() if a.effective_until else None,
+        "scraped_at": a.scraped_at.isoformat() if a.scraped_at else None,
+    } for a in alerts])
+
+
+@app.route("/api/pemex/scrape-status")
+@optional_auth
+def api_pemex_scrape_status():
+    """Get scraper health status: last runs, success rate, scheduler state."""
+    from pemex.scheduler import get_scheduler_status
+
+    # Last 10 scrape logs
+    logs = ScrapeLog.query.order_by(ScrapeLog.started_at.desc()).limit(10).all()
+
+    # Success rate (last 24h)
+    since = datetime.utcnow() - timedelta(hours=24)
+    total_24h = ScrapeLog.query.filter(ScrapeLog.started_at >= since).count()
+    success_24h = ScrapeLog.query.filter(
+        ScrapeLog.started_at >= since, ScrapeLog.status == "success"
+    ).count()
+
+    # Active credentials count
+    active_creds = PemexCredential.query.filter_by(is_active=True).count()
+    total_creds = PemexCredential.query.count()
+
+    # TAR terminal count
+    tar_count = TARTerminal.query.filter_by(active=True).count()
+
+    return jsonify({
+        "scheduler": get_scheduler_status(),
+        "credentials": {
+            "active": active_creds,
+            "total": total_creds,
+        },
+        "tar_terminals": tar_count,
+        "last_24h": {
+            "total_scrapes": total_24h,
+            "successful": success_24h,
+            "success_rate": round(success_24h / total_24h * 100, 1) if total_24h > 0 else 0,
+        },
+        "recent_logs": [{
+            "id": l.id,
+            "credential_id": l.credential_id,
+            "started_at": l.started_at.isoformat(),
+            "status": l.status,
+            "records_saved": l.records_saved,
+            "duration_seconds": l.duration_seconds,
+            "error": l.error_message[:200] if l.error_message else None,
+        } for l in logs],
+    })
+
+
+@app.route("/api/pemex/scrape/trigger", methods=["POST"])
+@require_auth
+@require_role("platform_admin", "org_admin")
+def api_pemex_trigger_scrape():
+    """Manually trigger an immediate Pemex scrape."""
+    from pemex.scheduler import trigger_scrape_now
+    result = trigger_scrape_now()
+    return jsonify(result)
+
+
+@app.route("/api/pemex/credentials", methods=["GET"])
+@require_auth
+@require_role("platform_admin")
+def api_pemex_credentials_list():
+    """List Pemex credentials (without exposing encrypted values)."""
+    creds = PemexCredential.query.order_by(PemexCredential.created_at.desc()).all()
+    return jsonify([{
+        "id": c.id,
+        "label": c.label,
+        "razon_social_id": c.razon_social_id,
+        "razon_social_name": c.razon_social.name if c.razon_social else None,
+        "portal_url": c.portal_url,
+        "is_active": c.is_active,
+        "last_login_at": c.last_login_at.isoformat() if c.last_login_at else None,
+        "last_login_ok": c.last_login_ok,
+        "consecutive_failures": c.consecutive_failures,
+        "last_error": c.last_error,
+    } for c in creds])
+
+
+@app.route("/api/pemex/credentials", methods=["POST"])
+@require_auth
+@require_role("platform_admin")
+def api_pemex_credentials_create():
+    """Add or update Pemex credentials (admin only)."""
+    from pemex.credentials import store_credential
+
+    data = request.json or {}
+    username = data.get("username", "").strip()
+    password = data.get("password", "")
+    razon_id = data.get("razon_social_id")
+    label = data.get("label", "")
+
+    if not username or not password:
+        return jsonify({"error": "username y password requeridos"}), 400
+
+    try:
+        cred = store_credential(
+            db.session,
+            razon_social_id=razon_id,
+            username=username,
+            password=password,
+            label=label,
+            portal_url=data.get("portal_url"),
+        )
+        return jsonify({"success": True, "credential_id": cred.id}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ================================================================== #
+# Initialize DB and start scheduler
+# ================================================================== #
+
 init_db()
+
+# Start Pemex scraper scheduler (only if enabled via env)
+from pemex.scheduler import init_scheduler
+init_scheduler(app)
 
 if __name__ == "__main__":
     init_db()

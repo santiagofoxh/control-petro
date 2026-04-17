@@ -2053,6 +2053,387 @@ function requestPemexSlot() {
 }
 
 // ----------------------------------------------------------------
+//  ERP Comercializadora - Integrated Pemex TAR + Orders
+// ----------------------------------------------------------------
+let _erpTarTerminals = [];
+let _erpPrices = [];
+let _erpAlerts = [];
+let _erpSchedules = [];
+let _erpOrders = [];
+let _erpSlots = [];
+let _erpScrapeStatus = null;
+
+function loadErpComercializadora() {
+  fetchErpData().then(() => renderErpComercializadora());
+}
+
+async function fetchErpData() {
+  const headers = getApiHeaders();
+  try {
+    const [tarResp, pricesResp, alertsResp, schedulesResp, ordersResp, slotsResp, scrapeResp] = await Promise.all([
+      fetch('/api/pemex/tar', { headers }).then(r => r.ok ? r.json() : { terminals: [] }),
+      fetch('/api/pemex/prices', { headers }).then(r => r.ok ? r.json() : { prices: [] }),
+      fetch('/api/pemex/alerts', { headers }).then(r => r.ok ? r.json() : { alerts: [] }),
+      fetch('/api/pemex/schedules', { headers }).then(r => r.ok ? r.json() : { schedules: [] }),
+      fetch('/api/comercializadora/orders', { headers }).then(r => r.ok ? r.json() : { orders: [] }),
+      fetch('/api/comercializadora/slots', { headers }).then(r => r.ok ? r.json() : { slots: [] }),
+      fetch('/api/pemex/scrape-status', { headers }).then(r => r.ok ? r.json() : null),
+    ]);
+    _erpTarTerminals = tarResp.terminals || getErpDemoTerminals();
+    _erpPrices = pricesResp.prices || getErpDemoPrices();
+    _erpAlerts = alertsResp.alerts || getErpDemoAlerts();
+    _erpSchedules = schedulesResp.schedules || getErpDemoSchedules();
+    _erpOrders = ordersResp.orders || getDemoOrders();
+    _erpSlots = slotsResp.slots || getDemoSlots();
+    _erpScrapeStatus = scrapeResp;
+  } catch(e) {
+    _erpTarTerminals = getErpDemoTerminals();
+    _erpPrices = getErpDemoPrices();
+    _erpAlerts = getErpDemoAlerts();
+    _erpSchedules = getErpDemoSchedules();
+    _erpOrders = getDemoOrders();
+    _erpSlots = getDemoSlots();
+    _erpScrapeStatus = null;
+  }
+}
+
+function getErpDemoTerminals() {
+  return [
+    { id: 1, name: 'TAR Ciudad Juarez', code: 'TAR-JRZ', region: 'Norte', state: 'Chihuahua', status: 'operational', level_percent: 72, estimated_liters: 2160000, wait_time_minutes: 35, fuels: ['magna', 'premium', 'diesel'], lat: 31.6904, lng: -106.4245 },
+    { id: 2, name: 'TAR Chihuahua', code: 'TAR-CHI', region: 'Norte', state: 'Chihuahua', status: 'operational', level_percent: 58, estimated_liters: 1740000, wait_time_minutes: 20, fuels: ['magna', 'premium', 'diesel'], lat: 28.6353, lng: -106.0889 },
+    { id: 3, name: 'TAR Cadereyta', code: 'TAR-CAD', region: 'Noreste', state: 'Nuevo Leon', status: 'operational', level_percent: 85, estimated_liters: 4250000, wait_time_minutes: 45, fuels: ['magna', 'premium', 'diesel'], lat: 25.5933, lng: -99.9833 },
+    { id: 4, name: 'TAR Monterrey', code: 'TAR-MTY', region: 'Noreste', state: 'Nuevo Leon', status: 'limited', level_percent: 34, estimated_liters: 1020000, wait_time_minutes: 90, fuels: ['magna', 'diesel'], lat: 25.6866, lng: -100.3161 },
+    { id: 5, name: 'TAR Guadalajara', code: 'TAR-GDL', region: 'Occidente', state: 'Jalisco', status: 'operational', level_percent: 91, estimated_liters: 5460000, wait_time_minutes: 15, fuels: ['magna', 'premium', 'diesel'], lat: 20.6597, lng: -103.3496 },
+    { id: 6, name: 'TAR Azcapotzalco', code: 'TAR-AZC', region: 'Centro', state: 'CDMX', status: 'maintenance', level_percent: 12, estimated_liters: 360000, wait_time_minutes: null, fuels: ['magna'], lat: 19.4869, lng: -99.1847 },
+    { id: 7, name: 'TAR Salamanca', code: 'TAR-SAL', region: 'Bajio', state: 'Guanajuato', status: 'operational', level_percent: 67, estimated_liters: 2010000, wait_time_minutes: 25, fuels: ['magna', 'premium', 'diesel'], lat: 20.5739, lng: -101.1953 },
+    { id: 8, name: 'TAR Tula', code: 'TAR-TUL', region: 'Centro', state: 'Hidalgo', status: 'operational', level_percent: 79, estimated_liters: 3160000, wait_time_minutes: 30, fuels: ['magna', 'premium', 'diesel'], lat: 20.0545, lng: -99.3407 },
+  ];
+}
+
+function getErpDemoPrices() {
+  return [
+    { terminal: 'TAR Ciudad Juarez', fuel_type: 'magna', price_per_liter: 22.45, effective_date: new Date().toISOString().split('T')[0], change: 0.12 },
+    { terminal: 'TAR Ciudad Juarez', fuel_type: 'premium', price_per_liter: 24.89, effective_date: new Date().toISOString().split('T')[0], change: -0.05 },
+    { terminal: 'TAR Ciudad Juarez', fuel_type: 'diesel', price_per_liter: 23.67, effective_date: new Date().toISOString().split('T')[0], change: 0.08 },
+    { terminal: 'TAR Chihuahua', fuel_type: 'magna', price_per_liter: 22.38, effective_date: new Date().toISOString().split('T')[0], change: 0.10 },
+    { terminal: 'TAR Chihuahua', fuel_type: 'premium', price_per_liter: 24.75, effective_date: new Date().toISOString().split('T')[0], change: -0.03 },
+    { terminal: 'TAR Chihuahua', fuel_type: 'diesel', price_per_liter: 23.52, effective_date: new Date().toISOString().split('T')[0], change: 0.15 },
+    { terminal: 'TAR Cadereyta', fuel_type: 'magna', price_per_liter: 22.10, effective_date: new Date().toISOString().split('T')[0], change: -0.02 },
+    { terminal: 'TAR Monterrey', fuel_type: 'magna', price_per_liter: 22.55, effective_date: new Date().toISOString().split('T')[0], change: 0.20 },
+  ];
+}
+
+function getErpDemoAlerts() {
+  const today = new Date().toISOString();
+  return [
+    { id: 1, type: 'warning', title: 'TAR Monterrey - Nivel Bajo', message: 'Nivel de magna al 34%. Posible desabasto en 48 horas.', terminal: 'TAR Monterrey', severity: 'high', created_at: today, active: true },
+    { id: 2, type: 'maintenance', title: 'TAR Azcapotzalco - Mantenimiento', message: 'Mantenimiento programado hasta el viernes. Solo magna disponible.', terminal: 'TAR Azcapotzalco', severity: 'medium', created_at: today, active: true },
+    { id: 3, type: 'info', title: 'Nuevos Precios Vigentes', message: 'Actualizacion de precios de Pemex vigente a partir de hoy.', terminal: null, severity: 'low', created_at: today, active: true },
+  ];
+}
+
+function getErpDemoSchedules() {
+  const today = new Date();
+  const fmt = d => d.toISOString().split('T')[0];
+  const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
+  return [
+    { id: 1, terminal: 'TAR Ciudad Juarez', date: fmt(addDays(today, 1)), shift: 'T1', time: '06:00-10:00', available_liters: 60000, fuel_type: 'magna', status: 'open' },
+    { id: 2, terminal: 'TAR Ciudad Juarez', date: fmt(addDays(today, 1)), shift: 'T2', time: '10:00-14:00', available_liters: 45000, fuel_type: 'magna', status: 'open' },
+    { id: 3, terminal: 'TAR Ciudad Juarez', date: fmt(addDays(today, 1)), shift: 'T1', time: '06:00-10:00', available_liters: 30000, fuel_type: 'diesel', status: 'open' },
+    { id: 4, terminal: 'TAR Ciudad Juarez', date: fmt(addDays(today, 2)), shift: 'T1', time: '06:00-10:00', available_liters: 60000, fuel_type: 'magna', status: 'open' },
+    { id: 5, terminal: 'TAR Chihuahua', date: fmt(addDays(today, 1)), shift: 'T1', time: '07:00-11:00', available_liters: 40000, fuel_type: 'magna', status: 'open' },
+    { id: 6, terminal: 'TAR Chihuahua', date: fmt(addDays(today, 2)), shift: 'T2', time: '11:00-15:00', available_liters: 35000, fuel_type: 'premium', status: 'open' },
+  ];
+}
+
+function renderErpComercializadora() {
+  const terminals = _erpTarTerminals;
+  const prices = _erpPrices;
+  const alerts = _erpAlerts;
+  const schedules = _erpSchedules;
+  const orders = _erpOrders;
+  const slots = _erpSlots;
+
+  // --- KPIs from TAR data ---
+  const operational = terminals.filter(t => t.status === 'operational').length;
+  const limited = terminals.filter(t => t.status === 'limited').length;
+  const maintenance = terminals.filter(t => t.status === 'maintenance').length;
+  const avgLevel = terminals.length ? Math.round(terminals.reduce((s, t) => s + (t.level_percent || 0), 0) / terminals.length) : 0;
+  const activeAlerts = alerts.filter(a => a.active && a.severity === 'high').length;
+  const pendingOrders = orders.filter(o => o.status === 'pending').length;
+  const openSchedules = schedules.filter(s => s.status === 'open').length;
+
+  // --- Scrape status badge ---
+  const scrapeHtml = _erpScrapeStatus ?
+    '<div style="display:flex;align-items:center;gap:6px;font-size:.7rem;color:var(--g400)"><span style="width:8px;height:8px;border-radius:50%;background:' + (_erpScrapeStatus.enabled ? 'var(--green)' : 'var(--orange)') + ';display:inline-block"></span>' + (_erpScrapeStatus.enabled ? 'Bot activo' : 'Bot inactivo') + (_erpScrapeStatus.next_run ? ' &middot; Prox: ' + new Date(_erpScrapeStatus.next_run).toLocaleTimeString('es-MX', {hour:'2-digit',minute:'2-digit'}) : '') + '</div>' :
+    '<div style="display:flex;align-items:center;gap:6px;font-size:.7rem;color:var(--orange)"><span style="width:8px;height:8px;border-radius:50%;background:var(--orange);display:inline-block"></span>Datos demo &mdash; conectar bot Pemex</div>';
+
+  // --- Alerts banner ---
+  let alertsHtml = '';
+  const activeAlertsAll = alerts.filter(a => a.active);
+  if (activeAlertsAll.length > 0) {
+    const severityIcon = { high: '&#9888;', medium: '&#9432;', low: '&#9432;' };
+    const severityColor = { high: 'var(--red)', medium: 'var(--orange)', low: 'var(--teal)' };
+    const severityBg = { high: 'rgba(239,68,68,.1)', medium: 'rgba(249,115,22,.1)', low: 'rgba(13,148,136,.08)' };
+    alertsHtml = '<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:1rem">';
+    activeAlertsAll.forEach(a => {
+      alertsHtml += '<div style="background:' + (severityBg[a.severity] || severityBg.low) + ';border:1px solid ' + (severityColor[a.severity] || severityColor.low) + ';border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:8px"><span style="font-size:1.1rem;color:' + (severityColor[a.severity] || severityColor.low) + '">' + (severityIcon[a.severity] || '&#9432;') + '</span><div><div style="font-weight:600;font-size:.78rem;color:var(--w)">' + a.title + '</div><div style="font-size:.7rem;color:var(--g400)">' + a.message + '</div></div></div>';
+    });
+    alertsHtml += '</div>';
+  }
+
+  // --- TAR Terminal Status Table ---
+  const statusColor = { operational: 'var(--green)', limited: 'var(--orange)', maintenance: 'var(--red)', offline: 'var(--g600)' };
+  const statusLabel = { operational: 'Operativo', limited: 'Limitado', maintenance: 'Mantenimiento', offline: 'Fuera de Linea' };
+  let terminalRows = '';
+  terminals.sort((a, b) => (a.level_percent || 0) - (b.level_percent || 0)); // lowest levels first
+  terminals.forEach(t => {
+    const levelColor = t.level_percent >= 70 ? 'var(--green)' : t.level_percent >= 40 ? 'var(--orange)' : 'var(--red)';
+    const barWidth = Math.max(t.level_percent || 0, 2);
+    const fuelsHtml = (t.fuels || []).map(f => {
+      const fc = f === 'magna' ? '#22c55e' : f === 'premium' ? '#ef4444' : '#eab308';
+      return '<span style="background:' + fc + ';color:#000;padding:1px 5px;border-radius:6px;font-size:.58rem;font-weight:700">' + f.charAt(0).toUpperCase() + f.slice(1) + '</span>';
+    }).join(' ');
+    const waitStr = t.wait_time_minutes != null ? t.wait_time_minutes + ' min' : '&mdash;';
+    terminalRows += '<tr>' +
+      '<td><span style="font-weight:600;color:var(--teal)">' + (t.code || '') + '</span></td>' +
+      '<td>' + t.name + '</td>' +
+      '<td>' + (t.region || '') + '</td>' +
+      '<td><span style="color:' + (statusColor[t.status] || 'var(--g400)') + ';font-weight:600;font-size:.75rem">' + (statusLabel[t.status] || t.status) + '</span></td>' +
+      '<td><div style="display:flex;align-items:center;gap:6px"><div style="flex:1;background:var(--g800);border-radius:4px;height:8px;min-width:60px"><div style="width:' + barWidth + '%;height:100%;border-radius:4px;background:' + levelColor + '"></div></div><span style="font-size:.72rem;font-weight:600;color:' + levelColor + '">' + (t.level_percent || 0) + '%</span></div></td>' +
+      '<td style="font-size:.75rem">' + (t.estimated_liters ? (t.estimated_liters / 1000).toLocaleString() + 'k L' : '&mdash;') + '</td>' +
+      '<td style="font-size:.75rem">' + waitStr + '</td>' +
+      '<td>' + fuelsHtml + '</td>' +
+      '</tr>';
+  });
+
+  // --- Prices mini-table ---
+  let pricesHtml = '';
+  if (prices.length > 0) {
+    const uniqueTerminals = [...new Set(prices.map(p => p.terminal))];
+    uniqueTerminals.forEach(term => {
+      const tp = prices.filter(p => p.terminal === term);
+      pricesHtml += '<div style="margin-bottom:8px"><div style="font-weight:600;font-size:.75rem;color:var(--w);margin-bottom:4px">' + term + '</div><div style="display:flex;gap:8px;flex-wrap:wrap">';
+      tp.forEach(p => {
+        const fc = p.fuel_type === 'magna' ? '#22c55e' : p.fuel_type === 'premium' ? '#ef4444' : '#eab308';
+        const changeIcon = p.change > 0 ? '&#9650;' : p.change < 0 ? '&#9660;' : '&#9644;';
+        const changeColor = p.change > 0 ? 'var(--red)' : p.change < 0 ? 'var(--green)' : 'var(--g400)';
+        pricesHtml += '<div style="background:var(--g800);border-radius:6px;padding:4px 10px;display:flex;align-items:center;gap:6px"><span style="background:' + fc + ';color:#000;padding:1px 5px;border-radius:6px;font-size:.6rem;font-weight:700">' + p.fuel_type.charAt(0).toUpperCase() + p.fuel_type.slice(1) + '</span><span style="font-weight:700;font-size:.82rem;color:var(--w)">$' + p.price_per_liter.toFixed(2) + '</span><span style="font-size:.65rem;color:' + changeColor + '">' + changeIcon + ' ' + Math.abs(p.change).toFixed(2) + '</span></div>';
+      });
+      pricesHtml += '</div></div>';
+    });
+  }
+
+  // --- Delivery Schedules Calendar ---
+  const today = new Date();
+  const dayNames = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
+  let schedCalHtml = '';
+  for (let d = 0; d < 5; d++) {
+    const date = new Date(today); date.setDate(date.getDate() + d);
+    const dateStr = date.toISOString().split('T')[0];
+    const daySched = schedules.filter(s => s.date === dateStr);
+    const daySlots = slots.filter(s => s.date === dateStr);
+    const dayOrders = orders.filter(o => o.delivery_date === dateStr && o.status !== 'delivered');
+    const isToday = d === 0;
+
+    let dayContent = '';
+    // Show Pemex delivery schedules
+    if (daySched.length > 0) {
+      daySched.forEach(s => {
+        const fc = s.fuel_type === 'magna' ? '#22c55e' : s.fuel_type === 'premium' ? '#ef4444' : '#eab308';
+        dayContent += '<div style="background:rgba(13,148,136,.12);border-left:3px solid var(--teal);border-radius:4px;padding:4px 8px;margin-bottom:4px;font-size:.68rem">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-weight:600;color:var(--w)">' + s.shift + ' ' + s.time + '</span><span style="background:' + fc + ';color:#000;padding:1px 5px;border-radius:6px;font-size:.55rem;font-weight:700">' + s.fuel_type.charAt(0).toUpperCase() + s.fuel_type.slice(1) + '</span></div>' +
+          '<div style="color:var(--g400);font-size:.62rem;margin-top:2px">' + s.terminal + ' &middot; ' + (s.available_liters / 1000).toLocaleString() + 'k L disp.</div></div>';
+      });
+    }
+    // Show existing order slots
+    if (daySlots.length > 0) {
+      daySlots.forEach(s => {
+        const order = s.order_id ? orders.find(o => o.id === s.order_id) : null;
+        const slotColor = s.status === 'available' ? 'rgba(13,148,136,.15)' : s.status === 'reserved' ? 'rgba(249,115,22,.15)' : 'rgba(239,68,68,.15)';
+        const slotBorder = s.status === 'available' ? 'var(--teal)' : s.status === 'reserved' ? 'var(--orange)' : 'var(--red)';
+        const slotLabel = s.status === 'available' ? 'Slot Disponible' : s.status === 'reserved' ? (order ? order.client : 'Reservado') : (order ? order.client : 'Ocupado');
+        dayContent += '<div style="background:' + slotColor + ';border-left:3px solid ' + slotBorder + ';border-radius:4px;padding:4px 8px;margin-bottom:4px;font-size:.68rem"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-weight:600;color:var(--w)">' + s.time + '</span><span style="color:' + slotBorder + ';font-size:.62rem">' + slotLabel + '</span></div><div style="color:var(--g500);font-size:.58rem;margin-top:1px">' + s.terminal + '</div></div>';
+      });
+    }
+    // Unscheduled orders
+    dayOrders.filter(o => !daySlots.some(s => s.order_id === o.id)).forEach(o => {
+      dayContent += '<div style="background:rgba(249,115,22,.08);border-left:3px solid var(--orange);border-radius:4px;padding:4px 8px;margin-bottom:4px;font-size:.68rem"><div style="color:var(--orange);font-weight:600;font-size:.62rem">OC sin slot</div><div style="color:var(--w);font-size:.65rem">' + o.client + ' - ' + o.liters.toLocaleString() + ' L</div></div>';
+    });
+
+    if (!dayContent) dayContent = '<div style="color:var(--g600);font-size:.68rem;text-align:center;padding:8px">Sin actividad</div>';
+    schedCalHtml += '<div style="flex:1;min-width:180px;background:var(--card);border:1px solid ' + (isToday ? 'var(--teal)' : 'var(--g700)') + ';border-radius:8px;padding:8px;' + (isToday ? 'box-shadow:0 0 0 1px var(--teal)' : '') + '"><div style="text-align:center;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--g700)"><div style="font-size:.68rem;color:' + (isToday ? 'var(--teal)' : 'var(--g400)') + ';font-weight:600">' + dayNames[date.getDay()] + (isToday ? ' (Hoy)' : '') + '</div><div style="font-size:.85rem;font-weight:700;color:var(--w)">' + date.getDate() + ' ' + date.toLocaleDateString('es-MX', {month: 'short'}) + '</div></div>' + dayContent + '</div>';
+  }
+
+  // --- Integrated Order Form ---
+  let terminalOptions = '<option value="">Seleccionar TAR...</option>';
+  terminals.filter(t => t.status !== 'offline').forEach(t => {
+    const badge = t.status === 'operational' ? '&#9679; ' : t.status === 'limited' ? '&#9888; ' : '&#9881; ';
+    terminalOptions += '<option value="' + t.name + '">' + badge + t.name + ' (' + (t.level_percent || 0) + '%)</option>';
+  });
+
+  // --- Build page ---
+  const html =
+    // Header with scrape status
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">' +
+      '<div><h2 style="margin:0;font-size:1.2rem;color:var(--w)">ERP Comercializadora</h2><div style="color:var(--g400);font-size:.72rem;margin-top:2px">Sistema integrado de pedidos + disponibilidad Pemex TAR</div></div>' +
+      scrapeHtml +
+    '</div>' +
+
+    // Alerts
+    alertsHtml +
+
+    // KPI Row
+    '<div class="kpi-grid">' +
+      '<div class="kpi"><div class="kpi-icon" style="background:var(--green)"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" width="16" height="16"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg></div><div class="kpi-value" style="color:var(--green)">' + operational + '</div><div class="kpi-label">TARs Operativas</div></div>' +
+      '<div class="kpi"><div class="kpi-icon" style="background:var(--orange)"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" width="16" height="16"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><div class="kpi-value" style="color:var(--orange)">' + (limited + maintenance) + '</div><div class="kpi-label">TARs Limitadas</div></div>' +
+      '<div class="kpi"><div class="kpi-icon" style="background:var(--teal)"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" width="16" height="16"><path d="M12 2v20M2 12h20"/></svg></div><div class="kpi-value" style="color:var(--teal)">' + avgLevel + '<span style="font-size:.5em;color:var(--g400)">%</span></div><div class="kpi-label">Nivel Promedio</div></div>' +
+      '<div class="kpi"><div class="kpi-icon" style="background:var(--red)"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" width="16" height="16"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg></div><div class="kpi-value" style="color:var(--red)">' + activeAlerts + '</div><div class="kpi-label">Alertas Criticas</div></div>' +
+      '<div class="kpi"><div class="kpi-icon" style="background:var(--blue)">OC</div><div class="kpi-value" style="color:var(--blue)">' + pendingOrders + '</div><div class="kpi-label">Ordenes Pendientes</div></div>' +
+      '<div class="kpi"><div class="kpi-icon" style="background:#22c55e">PE</div><div class="kpi-value" style="color:#22c55e">' + openSchedules + '</div><div class="kpi-label">Turnos Disponibles</div></div>' +
+    '</div>' +
+
+    // Two-column layout: TAR Status + Prices/Alerts
+    '<div style="display:grid;grid-template-columns:1fr 340px;gap:1rem;margin-top:1rem">' +
+
+      // LEFT: TAR Terminal Status
+      '<div class="panel"><div class="panel-header"><h3>Estado TAR en Tiempo Real</h3><button class="btn btn-outline" onclick="loadErpComercializadora()" style="padding:4px 10px;font-size:.7rem">&#8635; Actualizar</button></div>' +
+      '<div class="table-wrap"><table><thead><tr><th>Codigo</th><th>Terminal</th><th>Region</th><th>Estado</th><th>Nivel</th><th>Volumen</th><th>Espera</th><th>Combustibles</th></tr></thead><tbody>' + terminalRows + '</tbody></table></div></div>' +
+
+      // RIGHT: Prices + Alerts sidebar
+      '<div>' +
+        '<div class="panel" style="margin-bottom:1rem"><div class="panel-header"><h3>Precios Pemex Hoy</h3></div><div style="padding:0 4px">' + (pricesHtml || '<div style="color:var(--g500);font-size:.72rem;text-align:center;padding:12px">Sin datos de precios</div>') + '</div></div>' +
+      '</div>' +
+
+    '</div>' +
+
+    // Delivery Schedule Calendar
+    '<div class="panel" style="margin-top:1rem"><div class="panel-header"><h3>Calendario de Entregas + Turnos Pemex</h3><div style="display:flex;gap:12px;align-items:center;font-size:.68rem"><span style="color:var(--teal)">&#9632; Turno Pemex</span><span style="color:var(--orange)">&#9632; Reservado</span><span style="color:var(--red)">&#9632; Ocupado</span></div></div><div style="display:flex;gap:8px;overflow-x:auto;padding:4px 0">' + schedCalHtml + '</div></div>' +
+
+    // New Order Form - TAR-aware
+    '<div class="panel" style="margin-top:1rem"><div class="panel-header"><h3>Nueva Orden de Compra (ERP)</h3></div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:.6rem;margin-bottom:.8rem">' +
+    '<div class="form-group"><label class="form-label">Cliente</label><input class="form-input" id="erpClient" placeholder="Nombre del cliente"></div>' +
+    '<div class="form-group"><label class="form-label">TAR Terminal</label><select class="form-select" id="erpTerminal">' + terminalOptions + '</select></div>' +
+    '<div class="form-group"><label class="form-label">Combustible</label><select class="form-select" id="erpFuel"><option value="magna">Magna</option><option value="premium">Premium</option><option value="diesel">Diesel</option></select></div>' +
+    '<div class="form-group"><label class="form-label">Litros</label><input type="number" class="form-input" id="erpLiters" placeholder="20000"></div>' +
+    '<div class="form-group"><label class="form-label">Fecha Entrega</label><input type="date" class="form-input" id="erpDate"></div>' +
+    '<div class="form-group"><label class="form-label">Turno</label><select class="form-select" id="erpShift"><option value="">Auto-asignar</option><option value="T1">T1 (06:00-10:00)</option><option value="T2">T2 (10:00-14:00)</option><option value="T3">T3 (14:00-18:00)</option></select></div>' +
+    '<div class="form-group"><label class="form-label">Fuente</label><select class="form-select" id="erpSource"><option value="whatsapp">WhatsApp</option><option value="email">Email</option><option value="import_us">Importacion USA</option></select></div>' +
+    '<div class="form-group"><label class="form-label">Prioridad</label><select class="form-select" id="erpPriority"><option value="high">Alta</option><option value="medium">Media</option><option value="low">Baja</option></select></div>' +
+    '</div>' +
+    '<div style="display:flex;gap:.5rem">' +
+    '<button class="btn btn-primary" onclick="addErpOrder()" style="padding:8px 20px;font-size:.8rem">Registrar Orden ERP</button>' +
+    '<button class="btn btn-outline" onclick="autoAssignErpSlot()" style="padding:8px 16px;font-size:.78rem">Auto-Asignar Slot TAR</button>' +
+    '</div></div>' +
+
+    // Orders table
+    '<div class="panel" style="margin-top:1rem"><div class="panel-header"><h3>Ordenes ERP</h3><span style="color:var(--g400);font-size:.75rem">' + orders.length + ' ordenes</span></div><div class="table-wrap"><table><thead><tr><th>Orden</th><th>Cliente</th><th>Terminal</th><th>Producto</th><th>Volumen</th><th>Estado</th><th>Entrega</th><th>Turno</th><th>Canal</th><th>P</th></tr></thead><tbody>' + buildErpOrderRows(orders) + '</tbody></table></div></div>';
+
+  showContent(html);
+}
+
+function buildErpOrderRows(orders) {
+  const statusColors = { pending: 'var(--orange)', confirmed: 'var(--green)', in_transit: 'var(--teal)', delivered: 'var(--g500)' };
+  const statusLabels = { pending: 'Pendiente', confirmed: 'Confirmada', in_transit: 'En Transito', delivered: 'Entregada' };
+  const sourceLabels = { whatsapp: 'WhatsApp', email: 'Email', import_us: 'Import USA' };
+  const priorityColors = { high: 'var(--red)', medium: 'var(--orange)', low: 'var(--g500)' };
+  let html = '';
+  orders.sort((a, b) => { const p = {high:0,medium:1,low:2}; return p[a.priority] - p[b.priority]; });
+  orders.forEach(o => {
+    const fuelColor = o.fuel_type === 'magna' ? '#22c55e' : o.fuel_type === 'premium' ? '#ef4444' : '#eab308';
+    const terminal = o.terminal || o.pemex_slot ? (o.terminal || 'TAR Asignado') : '<span style="color:var(--g500)">Sin asignar</span>';
+    html += '<tr><td><span style="font-weight:600;color:var(--teal)">' + o.id + '</span></td><td>' + o.client + '</td><td style="font-size:.72rem">' + terminal + '</td><td><span style="background:' + fuelColor + ';color:#000;padding:2px 8px;border-radius:10px;font-size:.7rem;font-weight:700">' + FUEL_LABELS[o.fuel_type] + '</span></td><td style="font-weight:600">' + o.liters.toLocaleString() + ' L</td><td><span style="color:' + (statusColors[o.status] || 'var(--g400)') + ';font-weight:600;font-size:.75rem">' + (statusLabels[o.status] || o.status) + '</span></td><td>' + new Date(o.delivery_date + 'T00:00:00').toLocaleDateString('es-MX', {day:'numeric',month:'short'}) + '</td><td>' + (o.pemex_slot || '<span style="color:var(--orange)">Pendiente</span>') + '</td><td style="font-size:.75rem">' + (sourceLabels[o.source] || o.source) + '</td><td style="text-align:center"><span style="color:' + (priorityColors[o.priority] || 'var(--g400)') + '">&#9679;</span></td></tr>';
+  });
+  return html;
+}
+
+function addErpOrder() {
+  const client = document.getElementById('erpClient').value;
+  const terminal = document.getElementById('erpTerminal').value;
+  const fuel = document.getElementById('erpFuel').value;
+  const liters = parseInt(document.getElementById('erpLiters').value);
+  const date = document.getElementById('erpDate').value;
+  const shift = document.getElementById('erpShift').value;
+  const source = document.getElementById('erpSource').value;
+  const priority = document.getElementById('erpPriority').value;
+  if (!client || !liters || !date) { alert('Completa los campos obligatorios: Cliente, Litros y Fecha.'); return; }
+
+  // Validate against TAR capacity
+  if (terminal) {
+    const tar = _erpTarTerminals.find(t => t.name === terminal);
+    if (tar) {
+      if (tar.status === 'maintenance') { alert('La terminal ' + tar.name + ' esta en mantenimiento. Selecciona otra.'); return; }
+      if (tar.status === 'offline') { alert('La terminal ' + tar.name + ' esta fuera de linea.'); return; }
+      if (tar.level_percent < 20) {
+        if (!confirm('Atencion: ' + tar.name + ' tiene nivel critico (' + tar.level_percent + '%). Continuar?')) return;
+      }
+      // Check fuel availability
+      if (tar.fuels && !tar.fuels.includes(fuel)) {
+        alert(tar.name + ' no tiene ' + fuel + ' disponible. Combustibles: ' + tar.fuels.join(', ')); return;
+      }
+    }
+  }
+
+  const newOrder = {
+    id: 'ERP-' + String(_erpOrders.length + 1).padStart(3, '0'),
+    client, fuel_type: fuel, liters, status: shift ? 'confirmed' : 'pending',
+    delivery_date: date, source, pemex_slot: shift || null, priority,
+    terminal: terminal || null,
+    created: new Date().toISOString().split('T')[0]
+  };
+  _erpOrders.push(newOrder);
+
+  const headers = getApiHeaders();
+  fetch('/api/comercializadora/orders', { method: 'POST', headers, body: JSON.stringify(newOrder) }).catch(() => {});
+  renderErpComercializadora();
+}
+
+function autoAssignErpSlot() {
+  const pendingNoSlot = _erpOrders.filter(o => o.status === 'pending' && !o.pemex_slot);
+  if (pendingNoSlot.length === 0) { alert('No hay ordenes pendientes sin slot asignado.'); return; }
+
+  // Try to match with available schedules first (real TAR data)
+  let assigned = 0;
+  pendingNoSlot.forEach(order => {
+    // Find matching schedule by fuel type and terminal
+    const matchingSched = _erpSchedules.find(s =>
+      s.status === 'open' &&
+      s.fuel_type === order.fuel_type &&
+      s.available_liters >= order.liters &&
+      (!order.terminal || s.terminal === order.terminal)
+    );
+    if (matchingSched) {
+      order.pemex_slot = matchingSched.shift + ' ' + matchingSched.time;
+      order.terminal = matchingSched.terminal;
+      order.delivery_date = matchingSched.date;
+      order.status = 'confirmed';
+      matchingSched.status = 'assigned';
+      assigned++;
+      return;
+    }
+    // Fallback to existing slot system
+    const available = _erpSlots.find(s => s.status === 'available');
+    if (available) {
+      available.status = 'reserved';
+      available.order_id = order.id;
+      order.pemex_slot = available.time;
+      order.terminal = available.terminal;
+      order.status = 'confirmed';
+      order.delivery_date = available.date;
+      assigned++;
+    }
+  });
+
+  if (assigned > 0) {
+    alert(assigned + ' orden(es) asignada(s) a slots TAR exitosamente.');
+    renderErpComercializadora();
+  } else {
+    alert('No hay slots/turnos disponibles que coincidan. Intenta mas tarde.');
+  }
+}
+
+// ----------------------------------------------------------------
 //  Router
 // ----------------------------------------------------------------
 function loadPage(page) {
@@ -2064,6 +2445,7 @@ function loadPage(page) {
     registrar: loadRegistrar,
     estaciones: loadEstaciones,
     comercializadora: loadComercializadora,
+    erp_comercializadora: loadErpComercializadora,
   };
   (loaders[page] || loadDashboard)();
 }
